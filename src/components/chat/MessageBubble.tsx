@@ -1,8 +1,6 @@
 import { ChatMessage } from "@/lib/types";
 import { ToolCallCard } from "./ToolCallCard";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
-import { Bot, Check, Copy, User } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -18,67 +16,69 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
     } catch {}
   };
 
-  return (
-    <div
-      className={cn(
-        "flex gap-3 max-w-4xl w-full mx-auto py-3 px-4 rounded-xl transition-colors",
-        isAssistant ? "bg-card/60 border border-border/60" : "bg-transparent"
-      )}
-    >
-      <div className="shrink-0 mt-0.5">
-        {isAssistant ? (
-          <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary border border-primary/20 flex items-center justify-center">
-            <Bot className="h-4 w-4" />
+  if (!isAssistant) {
+    return (
+      <div className="flex justify-end w-full group">
+        <div className="relative max-w-[85%] rounded-2xl bg-secondary/80 hover:bg-secondary/95 border border-border/60 px-4 py-3 text-foreground transition-colors shadow-xs">
+          <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+            {message.content}
           </div>
-        ) : (
-          <div className="h-8 w-8 rounded-lg bg-secondary text-muted-foreground border border-border flex items-center justify-center">
-            <User className="h-4 w-4" />
-          </div>
-        )}
-      </div>
-
-      <div className="flex-1 space-y-1.5 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-foreground">
-              {isAssistant ? "KOKI Assistant" : "You"}
-            </span>
-            {message.model && (
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono">
-                {message.model}
-              </Badge>
-            )}
-          </div>
-
-          <div className="flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
+          <div className="absolute right-2 -bottom-6 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 z-10">
+            <button
               onClick={handleCopy}
+              className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors cursor-pointer"
               title="Copy message"
             >
               {copied ? (
                 <Check className="h-3 w-3 text-success" />
               ) : (
-                <Copy className="h-3 w-3 text-muted-foreground" />
+                <Copy className="h-3 w-3" />
               )}
-            </Button>
+            </button>
           </div>
         </div>
+      </div>
+    );
+  }
 
-        {message.toolCalls && message.toolCalls.length > 0 && (
-          <div className="space-y-1 my-2">
-            {message.toolCalls.map((toolCall, idx) => (
-              <ToolCallCard key={idx} toolCall={toolCall} />
-            ))}
-          </div>
-        )}
+  return (
+    <div className="w-full space-y-2.5 group">
+      {message.toolCalls && message.toolCalls.length > 0 && (
+        <div className="space-y-1.5 my-2 max-w-full">
+          {message.toolCalls.map((toolCall, idx) => (
+            <ToolCallCard key={idx} toolCall={toolCall} />
+          ))}
+        </div>
+      )}
 
-        <div className="text-sm leading-relaxed text-foreground whitespace-pre-wrap break-words">
-          {message.content}
+      <div className="text-sm leading-relaxed text-foreground whitespace-pre-wrap break-words">
+        {message.content}
+      </div>
+
+      <div className="flex items-center justify-between pt-1 text-[11px] text-muted-foreground">
+        <div className="flex items-center gap-2">
+          {message.model && (
+            <span className="font-mono text-muted-foreground/80">
+              {message.model}
+            </span>
+          )}
+        </div>
+
+        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+          <button
+            onClick={handleCopy}
+            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors cursor-pointer"
+            title="Copy response"
+          >
+            {copied ? (
+              <Check className="h-3 w-3 text-success" />
+            ) : (
+              <Copy className="h-3 w-3" />
+            )}
+          </button>
         </div>
       </div>
     </div>
   );
 }
+

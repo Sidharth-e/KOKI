@@ -7,7 +7,7 @@ import { AgentResponse, StreamChunkPayload, ToolCallInfo, ToolStatusPayload } fr
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
 import { LoadingAnimation } from "@/components/ui/LoadingAnimation";
-import { Bot, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 export function ChatInterface() {
@@ -132,7 +132,7 @@ export function ChatInterface() {
 
   return (
     <div className="flex flex-col h-full flex-1 overflow-hidden bg-transparent">
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-6 custom-scrollbar">
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-4">
             <div className="h-12 w-12 rounded-2xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center">
@@ -150,31 +150,31 @@ export function ChatInterface() {
         )}
 
         {isStreaming && (
-          <div className="flex gap-3 max-w-4xl w-full mx-auto py-3 px-4 rounded-xl bg-card/60 border border-border/60">
-            <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary border border-primary/20 flex items-center justify-center shrink-0">
-              <Bot className="h-4 w-4" />
-            </div>
-
-            <div className="flex-1 space-y-1.5 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-foreground">KOKI Assistant</span>
+          <div className="w-full space-y-2.5">
+            {activeToolStatus && (
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary/60 border border-border/80 text-xs font-mono text-foreground">
+                <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                <span>Executing {activeToolStatus.tool_name}...</span>
               </div>
+            )}
 
+            {streamingContent ? (
               <div className="text-sm leading-relaxed text-foreground whitespace-pre-wrap break-words">
-                {streamingContent ? (
-                  streamingContent
-                ) : (
-                  <LoadingAnimation size="sm" />
-                )}
+                {streamingContent}
               </div>
-            </div>
+            ) : (
+              <div className="py-2">
+                <LoadingAnimation size="md" />
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      <div className="border-t border-border bg-card/30 backdrop-blur-md">
+      <div className="border-t border-border/60 bg-card/40 backdrop-blur-md">
         <ChatInput onSendMessage={handleSendMessage} />
       </div>
     </div>
   );
 }
+

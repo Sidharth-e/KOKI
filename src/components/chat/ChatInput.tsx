@@ -1,9 +1,9 @@
 "use client";
 
 import { useChatStore } from "@/store/useChatStore";
-import { Button } from "@/components/ui/Button";
-import { ArrowUp, Loader2, Sparkles, Terminal } from "lucide-react";
+import { ArrowUp, Loader2, Sparkles } from "lucide-react";
 import { KeyboardEvent, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 
 interface ChatInputProps {
   onSendMessage: (content: string) => void;
@@ -36,44 +36,50 @@ export function ChatInput({ onSendMessage }: ChatInputProps) {
     e.target.style.height = `${Math.min(e.target.scrollHeight, 180)}px`;
   };
 
-
+  const canSubmit = input.trim().length > 0 && !isStreaming;
 
   return (
-    <div className="max-w-4xl w-full mx-auto p-4 space-y-3">
-      <div className="relative rounded-xl border border-border bg-card shadow-md focus-within:ring-2 focus-within:ring-ring focus-within:border-transparent transition-all">
+    <div className="w-full max-w-3xl mx-auto p-4">
+      <div className="relative rounded-2xl border border-border/80 bg-secondary/30 hover:bg-secondary/40 focus-within:bg-secondary/50 focus-within:border-primary/40 focus-within:ring-1 focus-within:ring-primary/20 transition-all p-3">
         <textarea
           ref={textareaRef}
           value={input}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
-          placeholder="Ask KOKI anything or run agent commands (Enter to send, Shift+Enter for new line)..."
+          placeholder="Reply or ask a follow up question..."
           rows={1}
           disabled={isStreaming}
-          className="w-full resize-none bg-transparent px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none custom-scrollbar max-h-44 disabled:opacity-50"
+          className="w-full resize-none bg-transparent px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none custom-scrollbar max-h-40 disabled:opacity-50"
         />
 
-        <div className="flex items-center justify-between px-3 py-2 border-t border-border/50 bg-secondary/30">
-          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <Terminal className="h-3 w-3 text-primary" />
-            <span>Rig Local Agent</span>
+        <div className="flex items-center justify-between pt-2 px-1">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1 text-[11px]">
+              <Sparkles className="h-3 w-3 text-primary" />
+              Rig Agent
+            </span>
           </div>
 
-          <Button
-            variant="primary"
-            size="sm"
+          <button
             onClick={handleSubmit}
-            disabled={!input.trim() || isStreaming}
-            className="h-8 px-3 rounded-lg"
+            disabled={!canSubmit}
+            className={cn(
+              "h-8 w-8 rounded-full flex items-center justify-center transition-all cursor-pointer",
+              canSubmit
+                ? "bg-primary text-primary-foreground shadow-sm hover:scale-105 active:scale-95"
+                : "bg-muted text-muted-foreground/50 cursor-not-allowed"
+            )}
+            title="Send message"
           >
             {isStreaming ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <ArrowUp className="h-3.5 w-3.5" />
+              <ArrowUp className="h-4 w-4 stroke-[2.5]" />
             )}
-            <span className="text-xs">Send</span>
-          </Button>
+          </button>
         </div>
       </div>
     </div>
   );
 }
+
