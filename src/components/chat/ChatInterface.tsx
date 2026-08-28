@@ -7,6 +7,7 @@ import { AgentResponse, StreamChunkPayload, ToolCallInfo, ToolStatusPayload } fr
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
 import { LoadingAnimation } from "@/components/ui/LoadingAnimation";
+import { MarkdownRenderer } from "@/components/ui/MarkdownRenderer";
 import { Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -159,9 +160,7 @@ export function ChatInterface() {
             )}
 
             {streamingContent ? (
-              <div className="text-sm leading-relaxed text-foreground whitespace-pre-wrap break-words">
-                {streamingContent}
-              </div>
+              <MarkdownRenderer content={streamingContent} />
             ) : (
               <div className="py-2">
                 <LoadingAnimation size="md" />

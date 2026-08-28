@@ -1,8 +1,8 @@
 import { ChatMessage } from "@/lib/types";
 import { ToolCallCard } from "./ToolCallCard";
+import { MarkdownRenderer } from "@/components/ui/MarkdownRenderer";
 import { Check, Copy } from "lucide-react";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
 
 export function MessageBubble({ message }: { message: ChatMessage }) {
   const [copied, setCopied] = useState(false);
@@ -51,9 +51,7 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
         </div>
       )}
 
-      <div className="text-sm leading-relaxed text-foreground whitespace-pre-wrap break-words">
-        {message.content}
-      </div>
+      <MarkdownRenderer content={message.content} />
 
       <div className="flex items-center justify-between pt-1 text-[11px] text-muted-foreground">
         <div className="flex items-center gap-2">
@@ -81,4 +79,5 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
     </div>
   );
 }
+
 

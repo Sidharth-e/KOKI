@@ -53,13 +53,6 @@ export function ChatInput({ onSendMessage }: ChatInputProps) {
         />
 
         <div className="flex items-center justify-between pt-2 px-1">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1 text-[11px]">
-              <Sparkles className="h-3 w-3 text-primary" />
-              Rig Agent
-            </span>
-          </div>
-
           <button
             onClick={handleSubmit}
             disabled={!canSubmit}
