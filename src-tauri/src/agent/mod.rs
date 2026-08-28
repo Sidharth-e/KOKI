@@ -111,17 +111,22 @@ impl AgentEngine {
 
         let mut stream = response.bytes_stream();
         let mut accumulated_text = String::new();
+        let mut line_buffer = String::new();
 
         while let Some(chunk_result) = stream.next().await {
             let chunk_bytes = chunk_result.map_err(|e| e.to_string())?;
             let chunk_str = String::from_utf8_lossy(&chunk_bytes);
+            line_buffer.push_str(&chunk_str);
 
-            for line in chunk_str.lines() {
-                if line.trim().is_empty() {
+            while let Some(newline_pos) = line_buffer.find('\n') {
+                let line = line_buffer[..newline_pos].trim().to_string();
+                line_buffer.drain(..=newline_pos);
+
+                if line.is_empty() {
                     continue;
                 }
 
-                if let Ok(val) = serde_json::from_str::<serde_json::Value>(line) {
+                if let Ok(val) = serde_json::from_str::<serde_json::Value>(&line) {
                     if let Some(msg) = val.get("message") {
                         if let Some(content) = msg.get("content").and_then(|c| c.as_str()) {
                             if !content.is_empty() {

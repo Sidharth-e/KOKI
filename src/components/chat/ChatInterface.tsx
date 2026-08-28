@@ -6,8 +6,8 @@ import { invokeCommand, listenToEvent } from "@/lib/tauri";
 import { AgentResponse, StreamChunkPayload, ToolCallInfo, ToolStatusPayload } from "@/lib/types";
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
-import { Badge } from "@/components/ui/Badge";
-import { Bot, Loader2, Sparkles, Wrench } from "lucide-react";
+import { LoadingAnimation } from "@/components/ui/LoadingAnimation";
+import { Bot, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 export function ChatInterface() {
@@ -32,36 +32,50 @@ export function ChatInterface() {
   useEffect(() => {
     let unlistenChunk: (() => void) | undefined;
     let unlistenTool: (() => void) | undefined;
+    let isCancelled = false;
 
     const setupListeners = async () => {
-      unlistenChunk = await listenToEvent<StreamChunkPayload>(
+      const unChunk = await listenToEvent<StreamChunkPayload>(
         "assistant-stream-chunk",
         (event) => {
-          if (event.payload.session_id === currentSessionId) {
+          if (event.payload.session_id === useChatStore.getState().currentSessionId) {
             if (event.payload.chunk) {
-              appendStreamContent(event.payload.chunk);
+              useChatStore.getState().appendStreamContent(event.payload.chunk);
             }
           }
         }
       );
 
-      unlistenTool = await listenToEvent<ToolStatusPayload>(
+      if (isCancelled) {
+        unChunk();
+      } else {
+        unlistenChunk = unChunk;
+      }
+
+      const unTool = await listenToEvent<ToolStatusPayload>(
         "assistant-tool-status",
         (event) => {
-          if (event.payload.session_id === currentSessionId) {
-            setActiveToolStatus(event.payload);
+          if (event.payload.session_id === useChatStore.getState().currentSessionId) {
+            useChatStore.getState().setActiveToolStatus(event.payload);
           }
         }
       );
+
+      if (isCancelled) {
+        unTool();
+      } else {
+        unlistenTool = unTool;
+      }
     };
 
     setupListeners();
 
     return () => {
+      isCancelled = true;
       if (unlistenChunk) unlistenChunk();
       if (unlistenTool) unlistenTool();
     };
-  }, [currentSessionId, appendStreamContent, setActiveToolStatus]);
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -141,35 +155,16 @@ export function ChatInterface() {
               <Bot className="h-4 w-4" />
             </div>
 
-            <div className="flex-1 space-y-2">
+            <div className="flex-1 space-y-1.5 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-foreground">KOKI Assistant</span>
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono gap-1 text-primary">
-                  <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                  Streaming
-                </Badge>
               </div>
 
-              {activeToolStatus && (
-                <div className="p-2.5 rounded-lg bg-secondary/80 border border-border flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <Wrench className="h-3.5 w-3.5 text-primary animate-pulse" />
-                    <span className="font-mono text-[11px] text-foreground">
-                      Running tool: <strong className="text-primary">{activeToolStatus.tool_name}</strong>
-                    </span>
-                  </div>
-                  <Badge variant="info" className="text-[10px] uppercase tracking-wider">
-                    {activeToolStatus.status}
-                  </Badge>
-                </div>
-              )}
-
               <div className="text-sm leading-relaxed text-foreground whitespace-pre-wrap break-words">
-                {streamingContent || (
-                  <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                    Thinking and orchestrating tools...
-                  </span>
+                {streamingContent ? (
+                  streamingContent
+                ) : (
+                  <LoadingAnimation size="sm" />
                 )}
               </div>
             </div>

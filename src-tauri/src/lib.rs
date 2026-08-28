@@ -22,14 +22,16 @@ pub fn run() {
 
                 #[cfg(target_os = "macos")]
                 {
-                    use cocoa::appkit::{NSColor, NSWindow};
-                    use cocoa::base::nil;
+                    use objc2::msg_send;
+                    use objc2::runtime::AnyObject;
+                    use objc2_app_kit::NSColor;
 
                     if let Ok(ns_win_ptr) = window.ns_window() {
                         unsafe {
-                            let ns_window = ns_win_ptr as cocoa::base::id;
-                            ns_window.setBackgroundColor_(NSColor::clearColor(nil));
-                            ns_window.setOpaque_(cocoa::base::NO);
+                            let ns_window = ns_win_ptr as *mut AnyObject;
+                            let clear_color = NSColor::clearColor();
+                            let _: () = msg_send![ns_window, setBackgroundColor: &*clear_color];
+                            let _: () = msg_send![ns_window, setOpaque: false];
                         }
                     }
                 }
