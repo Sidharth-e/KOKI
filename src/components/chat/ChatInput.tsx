@@ -1,7 +1,7 @@
 "use client";
 
 import { useChatStore } from "@/store/useChatStore";
-import { ArrowUp, Loader2, Sparkles } from "lucide-react";
+import { ArrowUp, FileText, Loader2, Paperclip, X } from "lucide-react";
 import { KeyboardEvent, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -9,15 +9,62 @@ interface ChatInputProps {
   onSendMessage: (content: string) => void;
 }
 
+interface AttachedFile {
+  name: string;
+  size: number;
+  content?: string;
+}
+
 export function ChatInput({ onSendMessage }: ChatInputProps) {
   const [input, setInput] = useState("");
+  const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null);
   const { isStreaming } = useChatStore();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result;
+      setAttachedFile({
+        name: file.name,
+        size: file.size,
+        content: typeof content === "string" ? content : undefined,
+      });
+    };
+    reader.readAsText(file);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setAttachedFile(null);
+  };
 
   const handleSubmit = () => {
-    if (!input.trim() || isStreaming) return;
-    onSendMessage(input.trim());
+    const trimmed = input.trim();
+    if ((!trimmed && !attachedFile) || isStreaming) return;
+
+    let messageContent = trimmed;
+    if (attachedFile) {
+      if (attachedFile.content) {
+        messageContent = trimmed
+          ? `${trimmed}\n\n---\n**Attached Document (${attachedFile.name}):**\n\`\`\`\n${attachedFile.content}\n\`\`\``
+          : `Please review this document (${attachedFile.name}):\n\`\`\`\n${attachedFile.content}\n\`\`\``;
+      } else {
+        messageContent = trimmed
+          ? `${trimmed} [Attached: ${attachedFile.name}]`
+          : `[Attached document: ${attachedFile.name}]`;
+      }
+    }
+
+    onSendMessage(messageContent);
     setInput("");
+    setAttachedFile(null);
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
@@ -36,7 +83,7 @@ export function ChatInput({ onSendMessage }: ChatInputProps) {
     e.target.style.height = `${Math.min(e.target.scrollHeight, 180)}px`;
   };
 
-  const canSubmit = input.trim().length > 0 && !isStreaming;
+  const canSubmit = (input.trim().length > 0 || attachedFile !== null) && !isStreaming;
 
   return (
     <div className="w-full max-w-3xl mx-auto p-4">
@@ -53,6 +100,39 @@ export function ChatInput({ onSendMessage }: ChatInputProps) {
         />
 
         <div className="flex items-center justify-between pt-2 px-1">
+          <div className="flex items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              onChange={handleFileChange}
+              className="hidden"
+              accept=".txt,.md,.pdf,.json,.csv,.js,.ts,.tsx,.py,.html,.css,.doc,.docx"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isStreaming}
+              className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50 cursor-pointer"
+              title="Attach document"
+            >
+              <Paperclip className="h-4 w-4" />
+            </button>
+            {attachedFile && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-secondary/80 border border-border text-xs text-foreground">
+                <FileText className="h-3.5 w-3.5 text-primary" />
+                <span className="max-w-[140px] truncate">{attachedFile.name}</span>
+                <button
+                  type="button"
+                  onClick={handleRemoveFile}
+                  className="h-4 w-4 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground ml-1 cursor-pointer"
+                  title="Remove attachment"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            )}
+          </div>
+
           <button
             onClick={handleSubmit}
             disabled={!canSubmit}
@@ -75,4 +155,5 @@ export function ChatInput({ onSendMessage }: ChatInputProps) {
     </div>
   );
 }
+
 
