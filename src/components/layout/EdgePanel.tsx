@@ -22,14 +22,14 @@ import {
 } from "lucide-react";
 import { useEffect, useRef } from "react";
 
-interface WindowMeta {
+interface PanelMeta {
   title: string;
   subtitle: string;
   icon: typeof MessageSquare;
   arrowClass: string;
 }
 
-const WINDOW_META: Record<NonNullable<ActiveDockWindow>, WindowMeta> = {
+const PANEL_META: Record<NonNullable<ActiveDockWindow>, PanelMeta> = {
   chat: {
     title: "KOKI Assistant",
     subtitle: "Rig v2 Local Agent",
@@ -62,10 +62,10 @@ const WINDOW_META: Record<NonNullable<ActiveDockWindow>, WindowMeta> = {
   },
 };
 
-export function EdgeWindowModal() {
+export function EdgePanel() {
   const { activeWindow, setActiveWindow, selectedModel } = useAppStore();
   const { messages, clearMessages, resetSession } = useChatStore();
-  const modalRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -79,13 +79,13 @@ export function EdgeWindowModal() {
 
   if (!activeWindow) return null;
 
-  const meta = WINDOW_META[activeWindow];
+  const meta = PANEL_META[activeWindow];
   const Icon = meta.icon;
 
   return (
     <div className="fixed right-20 top-1/2 -translate-y-1/2 z-40 flex items-center animate-in fade-in zoom-in-95 duration-200">
       <div
-        ref={modalRef}
+        ref={panelRef}
         className="relative w-[520px] lg:w-[640px] h-[78vh] max-h-[720px] rounded-2xl bg-card/95 backdrop-blur-2xl border border-border shadow-2xl flex flex-col overflow-hidden select-none"
       >
         <div

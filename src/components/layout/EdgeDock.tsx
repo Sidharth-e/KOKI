@@ -93,7 +93,7 @@ function ModelIcon({ id, className }: { id: string; className?: string }) {
   );
 }
 
-export function EdgeUsageDock() {
+export function EdgeDock() {
   const { activeWindow, toggleWindow } = useAppStore();
 
   const radius = 15;

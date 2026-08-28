@@ -1,8 +1,8 @@
 "use client";
 
 import { useAppStore } from "@/store/useAppStore";
-import { EdgeUsageDock } from "@/components/layout/EdgeUsageDock";
-import { EdgeWindowModal } from "@/components/layout/EdgeWindowModal";
+import { EdgeDock } from "@/components/layout/EdgeDock";
+import { EdgePanel } from "@/components/layout/EdgePanel";
 import { CommandPalette } from "@/components/layout/CommandPalette";
 
 export default function Home() {
@@ -17,8 +17,8 @@ export default function Home() {
         />
       )}
 
-      <EdgeWindowModal />
-      <EdgeUsageDock />
+      <EdgePanel />
+      <EdgeDock />
       <CommandPalette />
     </div>
   );
