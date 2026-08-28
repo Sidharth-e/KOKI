@@ -18,6 +18,13 @@ export interface OllamaModel {
   quantization_level?: string;
 }
 
+export interface ChatAttachment {
+  name: string;
+  size: number;
+  type: string;
+  content: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant" | "system";
@@ -25,6 +32,7 @@ export interface ChatMessage {
   timestamp: number;
   model?: string;
   toolCalls?: ToolCallInfo[];
+  attachment?: ChatAttachment;
 }
 
 export interface ToolCallInfo {

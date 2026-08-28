@@ -3,7 +3,7 @@
 import { useAppStore } from "@/store/useAppStore";
 import { useChatStore } from "@/store/useChatStore";
 import { invokeCommand, listenToEvent } from "@/lib/tauri";
-import { AgentResponse, StreamChunkPayload, ToolCallInfo, ToolStatusPayload } from "@/lib/types";
+import { AgentResponse, ChatAttachment, StreamChunkPayload, ToolCallInfo, ToolStatusPayload } from "@/lib/types";
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
 import { LoadingAnimation } from "@/components/ui/LoadingAnimation";
@@ -84,10 +84,11 @@ export function ChatInterface() {
     }
   }, [messages, streamingContent, activeToolStatus]);
 
-  const handleSendMessage = async (prompt: string) => {
+  const handleSendMessage = async (prompt: string, attachment?: ChatAttachment) => {
     addMessage({
       role: "user",
       content: prompt,
+      attachment,
     });
 
     setIsStreaming(true);
@@ -99,11 +100,22 @@ export function ChatInterface() {
       .filter((m) => m.role === "user" || m.role === "assistant")
       .map((m) => ({ role: m.role, content: m.content }));
 
+    const maxDocLength = 25000;
+    const truncatedContent = attachment
+      ? attachment.content.length > maxDocLength
+        ? `${attachment.content.slice(0, maxDocLength)}\n\n[... Document truncated to fit model context window ...]`
+        : attachment.content
+      : "";
+
+    const fullPrompt = attachment
+      ? `[Document: ${attachment.name}]\n${truncatedContent}\n\n${prompt || "Please analyze and explain the key details of this attached document."}`
+      : prompt;
+
     try {
       const response = await invokeCommand<AgentResponse>("ask_assistant", {
         sessionId: currentSessionId,
         request: {
-          prompt,
+          prompt: fullPrompt,
           model: selectedModel,
           system_prompt: systemPrompt,
           temperature: 0.7,

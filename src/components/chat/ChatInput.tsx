@@ -4,40 +4,41 @@ import { useChatStore } from "@/store/useChatStore";
 import { ArrowUp, FileText, Loader2, Paperclip, X } from "lucide-react";
 import { KeyboardEvent, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { parseDocument } from "@/lib/documentParser";
+import { ChatAttachment } from "@/lib/types";
 
 interface ChatInputProps {
-  onSendMessage: (content: string) => void;
-}
-
-interface AttachedFile {
-  name: string;
-  size: number;
-  content?: string;
+  onSendMessage: (content: string, attachment?: ChatAttachment) => void;
 }
 
 export function ChatInput({ onSendMessage }: ChatInputProps) {
   const [input, setInput] = useState("");
-  const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null);
+  const [attachedFile, setAttachedFile] = useState<ChatAttachment | null>(null);
+  const [isParsing, setIsParsing] = useState(false);
   const { isStreaming } = useChatStore();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result;
+    setIsParsing(true);
+    try {
+      const parsed = await parseDocument(file);
+      setAttachedFile(parsed);
+    } catch {
       setAttachedFile({
         name: file.name,
         size: file.size,
-        content: typeof content === "string" ? content : undefined,
+        type: file.name.split(".").pop() || "doc",
+        content: "[Unable to extract text from document]",
       });
-    };
-    reader.readAsText(file);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+    } finally {
+      setIsParsing(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
@@ -47,22 +48,9 @@ export function ChatInput({ onSendMessage }: ChatInputProps) {
 
   const handleSubmit = () => {
     const trimmed = input.trim();
-    if ((!trimmed && !attachedFile) || isStreaming) return;
+    if ((!trimmed && !attachedFile) || isStreaming || isParsing) return;
 
-    let messageContent = trimmed;
-    if (attachedFile) {
-      if (attachedFile.content) {
-        messageContent = trimmed
-          ? `${trimmed}\n\n---\n**Attached Document (${attachedFile.name}):**\n\`\`\`\n${attachedFile.content}\n\`\`\``
-          : `Please review this document (${attachedFile.name}):\n\`\`\`\n${attachedFile.content}\n\`\`\``;
-      } else {
-        messageContent = trimmed
-          ? `${trimmed} [Attached: ${attachedFile.name}]`
-          : `[Attached document: ${attachedFile.name}]`;
-      }
-    }
-
-    onSendMessage(messageContent);
+    onSendMessage(trimmed, attachedFile || undefined);
     setInput("");
     setAttachedFile(null);
     if (textareaRef.current) {
@@ -83,7 +71,7 @@ export function ChatInput({ onSendMessage }: ChatInputProps) {
     e.target.style.height = `${Math.min(e.target.scrollHeight, 180)}px`;
   };
 
-  const canSubmit = (input.trim().length > 0 || attachedFile !== null) && !isStreaming;
+  const canSubmit = (input.trim().length > 0 || attachedFile !== null) && !isStreaming && !isParsing;
 
   return (
     <div className="w-full max-w-3xl mx-auto p-4">
@@ -106,16 +94,20 @@ export function ChatInput({ onSendMessage }: ChatInputProps) {
               type="file"
               onChange={handleFileChange}
               className="hidden"
-              accept=".txt,.md,.pdf,.json,.csv,.js,.ts,.tsx,.py,.html,.css,.doc,.docx"
+              accept=".pdf,.docx,.doc,.pptx,.ppt,.xlsx,.xls,.odt,.ods,.odp,.epub,.rtf,.txt,.md,.markdown,.json,.csv,.tsv,.xml,.yaml,.yml,.py,.js,.ts,.tsx,.jsx,.rs,.go,.java,.c,.cpp,.h,.cs,.sh,.bash,.sql,.html,.css,.log,*/*"
             />
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={isStreaming}
+              disabled={isStreaming || isParsing}
               className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50 cursor-pointer"
               title="Attach document"
             >
-              <Paperclip className="h-4 w-4" />
+              {isParsing ? (
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              ) : (
+                <Paperclip className="h-4 w-4" />
+              )}
             </button>
             {attachedFile && (
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-secondary/80 border border-border text-xs text-foreground">
@@ -155,5 +147,6 @@ export function ChatInput({ onSendMessage }: ChatInputProps) {
     </div>
   );
 }
+
 
 
