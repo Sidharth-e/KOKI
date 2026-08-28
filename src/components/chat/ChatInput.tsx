@@ -36,35 +36,10 @@ export function ChatInput({ onSendMessage }: ChatInputProps) {
     e.target.style.height = `${Math.min(e.target.scrollHeight, 180)}px`;
   };
 
-  const quickPrompts = [
-    "Check system CPU and RAM metrics",
-    "Calculate 145 * 38 + 920",
-    "What tools are available in the Rig agent?",
-  ];
+
 
   return (
     <div className="max-w-4xl w-full mx-auto p-4 space-y-3">
-      {quickPrompts.length > 0 && !isStreaming && (
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1 text-[11px] text-muted-foreground mr-1">
-            <Sparkles className="h-3 w-3 text-primary" />
-            <span>Quick:</span>
-          </div>
-          {quickPrompts.map((prompt, idx) => (
-            <button
-              key={idx}
-              onClick={() => {
-                setInput(prompt);
-                textareaRef.current?.focus();
-              }}
-              className="text-[11px] px-2.5 py-1 rounded-full bg-secondary text-secondary-foreground hover:bg-tertiary transition-colors border border-border cursor-pointer"
-            >
-              {prompt}
-            </button>
-          ))}
-        </div>
-      )}
-
       <div className="relative rounded-xl border border-border bg-card shadow-md focus-within:ring-2 focus-within:ring-ring focus-within:border-transparent transition-all">
         <textarea
           ref={textareaRef}
