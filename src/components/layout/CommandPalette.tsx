@@ -19,7 +19,7 @@ export function CommandPalette() {
   const {
     commandPaletteOpen,
     setCommandPaletteOpen,
-    setActiveWindow,
+    setActivePanel,
     setSelectedModel,
     selectedModel,
   } = useAppStore();
@@ -49,35 +49,35 @@ export function CommandPalette() {
       title: "Assistant Chat",
       category: "Navigation",
       icon: MessageSquare,
-      perform: () => setActiveWindow("chat"),
+      perform: () => setActivePanel("chat"),
     },
     {
       id: "tab-usage",
       title: "Model Quotas & Engines",
       category: "Navigation",
       icon: Sparkles,
-      perform: () => setActiveWindow("usage"),
+      perform: () => setActivePanel("usage"),
     },
     {
       id: "tab-tools",
       title: "Agent Tools",
       category: "Navigation",
       icon: Wrench,
-      perform: () => setActiveWindow("tools"),
+      perform: () => setActivePanel("tools"),
     },
     {
       id: "tab-system",
       title: "System Monitor",
       category: "Navigation",
       icon: Activity,
-      perform: () => setActiveWindow("system"),
+      perform: () => setActivePanel("system"),
     },
     {
       id: "tab-settings",
       title: "Settings & Config",
       category: "Navigation",
       icon: Settings,
-      perform: () => setActiveWindow("settings"),
+      perform: () => setActivePanel("settings"),
     },
     {
       id: "model-gemma",
@@ -100,7 +100,7 @@ export function CommandPalette() {
       icon: Sparkles,
       perform: () => {
         resetSession();
-        setActiveWindow("chat");
+        setActivePanel("chat");
       },
     },
   ];

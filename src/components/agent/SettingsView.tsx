@@ -5,11 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { ModelPicker } from "./ModelPicker";
-import { Check, Settings, Sparkles } from "lucide-react";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { Check, Moon, Settings, Sparkles } from "lucide-react";
 import { useState } from "react";
 
 export function SettingsView() {
-  const { ollamaEndpoint, setOllamaEndpoint, systemPrompt, setSystemPrompt } = useAppStore();
+  const { ollamaEndpoint, setOllamaEndpoint, systemPrompt, setSystemPrompt, theme } = useAppStore();
   const [endpointInput, setEndpointInput] = useState(ollamaEndpoint);
   const [promptInput, setPromptInput] = useState(systemPrompt);
   const [saved, setSaved] = useState(false);
@@ -34,6 +35,23 @@ export function SettingsView() {
       </div>
 
       <ModelPicker />
+
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Moon className="h-4 w-4 text-primary" />
+                Appearance Theme
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Switch between dark and light appearance modes (Current: {theme})
+              </CardDescription>
+            </div>
+            <ThemeToggle />
+          </div>
+        </CardHeader>
+      </Card>
 
       <Card>
         <CardHeader className="pb-3">

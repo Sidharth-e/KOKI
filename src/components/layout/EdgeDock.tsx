@@ -1,6 +1,6 @@
 "use client";
 
-import { useAppStore, ActiveDockWindow } from "@/store/useAppStore";
+import { useAppStore, ActiveDockPanel } from "@/store/useAppStore";
 import { cn } from "@/lib/utils";
 import {
   Activity,
@@ -11,7 +11,7 @@ import {
 
 interface DockMeterItem {
   id: "claude" | "openai" | "rig";
-  windowTarget: NonNullable<ActiveDockWindow>;
+  panelTarget: NonNullable<ActiveDockPanel>;
   label: string;
   percent: number;
   colorClass: string;
@@ -21,7 +21,7 @@ interface DockMeterItem {
 const DOCK_METERS: DockMeterItem[] = [
   {
     id: "claude",
-    windowTarget: "usage",
+    panelTarget: "usage",
     label: "73%",
     percent: 73,
     colorClass: "text-warning",
@@ -29,7 +29,7 @@ const DOCK_METERS: DockMeterItem[] = [
   },
   {
     id: "openai",
-    windowTarget: "usage",
+    panelTarget: "usage",
     label: "21%",
     percent: 21,
     colorClass: "text-success",
@@ -37,7 +37,7 @@ const DOCK_METERS: DockMeterItem[] = [
   },
   {
     id: "rig",
-    windowTarget: "usage",
+    panelTarget: "usage",
     label: "52%",
     percent: 52,
     colorClass: "text-primary",
@@ -94,7 +94,7 @@ function ModelIcon({ id, className }: { id: string; className?: string }) {
 }
 
 export function EdgeDock() {
-  const { activeWindow, toggleWindow } = useAppStore();
+  const { activePanel, togglePanel } = useAppStore();
 
   const radius = 15;
   const circumference = 2 * Math.PI * radius;
@@ -118,10 +118,10 @@ export function EdgeDock() {
 
         <div className="w-16 py-6 rounded-l-3xl bg-card dark:bg-neutral-950 shadow-2xl border-y border-l border-border/60 flex flex-col items-center gap-4">
           <button
-            onClick={() => toggleWindow("chat")}
+            onClick={() => togglePanel("chat")}
             className={cn(
               "w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer",
-              activeWindow === "chat"
+              activePanel === "chat"
                 ? "bg-primary text-primary-foreground shadow-lg ring-2 ring-primary/40 scale-105"
                 : "bg-secondary text-muted-foreground hover:text-foreground hover:scale-105"
             )}
@@ -133,14 +133,14 @@ export function EdgeDock() {
           <div className="w-8 h-px bg-border/80 my-0.5" />
 
           {DOCK_METERS.map((item) => {
-            const isTargetActive = activeWindow === item.windowTarget;
+            const isTargetActive = activePanel === item.panelTarget;
             const strokeDashoffset =
               circumference - (item.percent / 100) * circumference;
 
             return (
               <button
                 key={item.id}
-                onClick={() => toggleWindow(item.windowTarget)}
+                onClick={() => togglePanel(item.panelTarget)}
                 className="group relative flex flex-col items-center gap-1 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-full p-0.5"
                 title={`${item.id.toUpperCase()} Usage (${item.percent}%)`}
               >
@@ -200,10 +200,10 @@ export function EdgeDock() {
           <div className="w-8 h-px bg-border/80 my-0.5" />
 
           <button
-            onClick={() => toggleWindow("tools")}
+            onClick={() => togglePanel("tools")}
             className={cn(
               "w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer",
-              activeWindow === "tools"
+              activePanel === "tools"
                 ? "bg-primary text-primary-foreground shadow-lg ring-2 ring-primary/40"
                 : "bg-secondary/70 text-muted-foreground hover:text-foreground hover:bg-secondary"
             )}
@@ -213,10 +213,10 @@ export function EdgeDock() {
           </button>
 
           <button
-            onClick={() => toggleWindow("system")}
+            onClick={() => togglePanel("system")}
             className={cn(
               "w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer",
-              activeWindow === "system"
+              activePanel === "system"
                 ? "bg-primary text-primary-foreground shadow-lg ring-2 ring-primary/40"
                 : "bg-secondary/70 text-muted-foreground hover:text-foreground hover:bg-secondary"
             )}
@@ -226,10 +226,10 @@ export function EdgeDock() {
           </button>
 
           <button
-            onClick={() => toggleWindow("settings")}
+            onClick={() => togglePanel("settings")}
             className={cn(
               "w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer",
-              activeWindow === "settings"
+              activePanel === "settings"
                 ? "bg-primary text-primary-foreground shadow-lg ring-2 ring-primary/40"
                 : "bg-secondary/70 text-muted-foreground hover:text-foreground hover:bg-secondary"
             )}

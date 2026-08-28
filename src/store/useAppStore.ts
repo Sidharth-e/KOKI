@@ -1,11 +1,11 @@
 import { create } from "zustand";
 
-export type ActiveDockWindow = "chat" | "usage" | "tools" | "system" | "settings" | null;
+export type ActiveDockPanel = "chat" | "usage" | "tools" | "system" | "settings" | null;
 export type ThemeMode = "dark" | "light";
 
 interface AppState {
   theme: ThemeMode;
-  activeWindow: ActiveDockWindow;
+  activePanel: ActiveDockPanel;
   selectedModel: string;
   ollamaEndpoint: string;
   systemPrompt: string;
@@ -14,8 +14,8 @@ interface AppState {
   commandPaletteOpen: boolean;
   setTheme: (theme: ThemeMode) => void;
   toggleTheme: () => void;
-  setActiveWindow: (window: ActiveDockWindow) => void;
-  toggleWindow: (window: NonNullable<ActiveDockWindow>) => void;
+  setActivePanel: (panel: ActiveDockPanel) => void;
+  togglePanel: (panel: NonNullable<ActiveDockPanel>) => void;
   setSelectedModel: (model: string) => void;
   setOllamaEndpoint: (endpoint: string) => void;
   setSystemPrompt: (prompt: string) => void;
@@ -26,7 +26,7 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set) => ({
   theme: "dark",
-  activeWindow: "chat",
+  activePanel: "chat",
   selectedModel: "gemma4:e2b-mlx",
   ollamaEndpoint: "http://127.0.0.1:11434",
   systemPrompt: "You are KOKI, a fast, proactive, and intelligent local AI personal assistant powered by gemma4:e2b-mlx, Rig, and Tauri.",
@@ -38,10 +38,10 @@ export const useAppStore = create<AppState>((set) => ({
     set((state) => ({
       theme: state.theme === "dark" ? "light" : "dark",
     })),
-  setActiveWindow: (activeWindow) => set({ activeWindow }),
-  toggleWindow: (window) =>
+  setActivePanel: (activePanel) => set({ activePanel }),
+  togglePanel: (panel) =>
     set((state) => ({
-      activeWindow: state.activeWindow === window ? null : window,
+      activePanel: state.activePanel === panel ? null : panel,
     })),
   setSelectedModel: (selectedModel) => set({ selectedModel }),
   setOllamaEndpoint: (ollamaEndpoint) => set({ ollamaEndpoint }),

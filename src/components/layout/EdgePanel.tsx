@@ -1,6 +1,6 @@
 "use client";
 
-import { useAppStore, ActiveDockWindow } from "@/store/useAppStore";
+import { useAppStore, ActiveDockPanel } from "@/store/useAppStore";
 import { useChatStore } from "@/store/useChatStore";
 import { ChatInterface } from "@/components/chat/ChatInterface";
 import { ModelUsageView } from "@/components/agent/ModelUsageView";
@@ -29,7 +29,7 @@ interface PanelMeta {
   arrowClass: string;
 }
 
-const PANEL_META: Record<NonNullable<ActiveDockWindow>, PanelMeta> = {
+const PANEL_META: Record<NonNullable<ActiveDockPanel>, PanelMeta> = {
   chat: {
     title: "KOKI Assistant",
     subtitle: "Rig v2 Local Agent",
@@ -63,23 +63,23 @@ const PANEL_META: Record<NonNullable<ActiveDockWindow>, PanelMeta> = {
 };
 
 export function EdgePanel() {
-  const { activeWindow, setActiveWindow, selectedModel } = useAppStore();
+  const { activePanel, setActivePanel, selectedModel } = useAppStore();
   const { messages, clearMessages, resetSession } = useChatStore();
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && activeWindow) {
-        setActiveWindow(null);
+      if (e.key === "Escape" && activePanel) {
+        setActivePanel(null);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeWindow, setActiveWindow]);
+  }, [activePanel, setActivePanel]);
 
-  if (!activeWindow) return null;
+  if (!activePanel) return null;
 
-  const meta = PANEL_META[activeWindow];
+  const meta = PANEL_META[activePanel];
   const Icon = meta.icon;
 
   return (
@@ -114,7 +114,7 @@ export function EdgePanel() {
           </div>
 
           <div className="flex items-center gap-1">
-            {activeWindow === "chat" && (
+            {activePanel === "chat" && (
               <>
                 <Button
                   variant="ghost"
@@ -141,9 +141,9 @@ export function EdgePanel() {
             )}
 
             <button
-              onClick={() => setActiveWindow(null)}
-              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-              title="Close window (ESC)"
+              onClick={() => setActivePanel(null)}
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors cursor-pointer"
+              title="Close panel (ESC)"
             >
               <X className="w-4 h-4" />
             </button>
@@ -151,19 +151,19 @@ export function EdgePanel() {
         </div>
 
         <div className="flex-1 overflow-hidden relative">
-          {activeWindow === "chat" && <ChatInterface />}
-          {activeWindow === "usage" && <ModelUsageView />}
-          {activeWindow === "tools" && (
+          {activePanel === "chat" && <ChatInterface />}
+          {activePanel === "usage" && <ModelUsageView />}
+          {activePanel === "tools" && (
             <div className="h-full overflow-y-auto p-5 custom-scrollbar">
               <ToolInspector />
             </div>
           )}
-          {activeWindow === "system" && (
+          {activePanel === "system" && (
             <div className="h-full overflow-y-auto p-5 custom-scrollbar">
               <SystemMonitor />
             </div>
           )}
-          {activeWindow === "settings" && (
+          {activePanel === "settings" && (
             <div className="h-full overflow-y-auto p-5 custom-scrollbar">
               <SettingsView />
             </div>
