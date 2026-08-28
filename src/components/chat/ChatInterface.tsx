@@ -117,7 +117,7 @@ export function ChatInterface() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3.5rem)] flex-1 overflow-hidden bg-background">
+    <div className="flex flex-col h-full flex-1 overflow-hidden bg-transparent">
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-4">

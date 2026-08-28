@@ -1,6 +1,6 @@
 "use client";
 
-import { useAppStore, NavTab } from "@/store/useAppStore";
+import { useAppStore, ActiveDockWindow } from "@/store/useAppStore";
 import { useChatStore } from "@/store/useChatStore";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
@@ -9,34 +9,35 @@ import {
   MessageSquare,
   Plus,
   Settings,
+  Sparkles,
   Trash2,
   Wrench,
   Zap,
 } from "lucide-react";
 
 export function Sidebar() {
-  const { activeTab, setActiveTab, sidebarOpen } = useAppStore();
+  const { activeWindow, setActiveWindow } = useAppStore();
   const { messages, resetSession, clearMessages } = useChatStore();
 
-  const navItems: { id: NavTab; label: string; icon: typeof MessageSquare }[] = [
+  const navItems: { id: NonNullable<ActiveDockWindow>; label: string; icon: typeof MessageSquare }[] = [
     { id: "chat", label: "Assistant Chat", icon: MessageSquare },
+    { id: "usage", label: "Model Quotas", icon: Sparkles },
     { id: "tools", label: "Agent Tools", icon: Wrench },
     { id: "system", label: "System Monitor", icon: Activity },
     { id: "settings", label: "Settings", icon: Settings },
   ];
 
-  if (!sidebarOpen) {
-    return null;
-  }
-
   return (
-    <aside className="w-64 border-r border-border bg-card/40 flex flex-col h-[calc(100vh-3.5rem)] shrink-0 select-none">
+    <aside className="w-64 border-r border-border bg-card/40 flex flex-col h-full shrink-0 select-none">
       <div className="p-3 border-b border-border">
         <Button
           variant="primary"
           size="sm"
           className="w-full justify-start gap-2 text-xs"
-          onClick={resetSession}
+          onClick={() => {
+            resetSession();
+            setActiveWindow("chat");
+          }}
         >
           <Plus className="h-4 w-4" />
           New Session
@@ -46,11 +47,11 @@ export function Sidebar() {
       <nav className="p-2 space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = activeTab === item.id;
+          const isActive = activeWindow === item.id;
           return (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => setActiveWindow(item.id)}
               className={cn(
                 "w-full flex items-center gap-3 px-3 py-2 text-xs font-medium rounded-lg transition-colors text-left cursor-pointer",
                 isActive

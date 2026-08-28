@@ -10,17 +10,16 @@
     "frontendDist": "../out"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
-        "title": "KOKI - AI Personal Assistant",
-        "width": 1200,
-        "height": 820,
-        "minWidth": 850,
-        "minHeight": 600,
-        "resizable": true,
-        "fullscreen": false,
-        "center": true,
-        "transparent": false
+        "title": "KOKI Assistant",
+        "transparent": true,
+        "decorations": false,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "center": false,
+        "resizable": true
       }
     ],
     "security": {

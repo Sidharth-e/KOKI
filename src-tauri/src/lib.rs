@@ -4,12 +4,37 @@ pub mod models;
 
 use agent::AgentEngine;
 use commands::agent_cmds::AgentState;
+use tauri::Manager;
 
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .manage(AgentState {
             engine: AgentEngine::default(),
+        })
+        .setup(|app| {
+            if let Some(window) = app.get_webview_window("main") {
+                if let Ok(Some(monitor)) = window.current_monitor() {
+                    let size = monitor.size();
+                    let _ = window.set_size(tauri::Size::Physical(size.clone()));
+                    let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x: 0, y: 0 }));
+                }
+
+                #[cfg(target_os = "macos")]
+                {
+                    use cocoa::appkit::{NSColor, NSWindow};
+                    use cocoa::base::nil;
+
+                    if let Ok(ns_win_ptr) = window.ns_window() {
+                        unsafe {
+                            let ns_window = ns_win_ptr as cocoa::base::id;
+                            ns_window.setBackgroundColor_(NSColor::clearColor(nil));
+                            ns_window.setOpaque_(cocoa::base::NO);
+                        }
+                    }
+                }
+            }
+            Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::agent_cmds::ask_assistant,
