@@ -5,82 +5,27 @@ import { invokeCommand } from "@/lib/tauri";
 import { OllamaModel } from "@/lib/types";
 import { formatBytes } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
+import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import {
   Check,
-  Clock,
   Cpu,
   HardDrive,
   RefreshCw,
   Sparkles,
   Zap,
 } from "lucide-react";
-import { useState } from "react";
-
-interface ModelPreset {
-  id: string;
-  name: string;
-  key: string;
-  sessionUsage: number;
-  sessionReset: string;
-  allModelsUsage: number;
-  allModelsReset: string;
-  colorClass: string;
-  barColorClass: string;
-  type: "local" | "cloud";
-}
-
-const PRESETS: ModelPreset[] = [
-  {
-    id: "claude",
-    name: "Claude 3.5 Sonnet",
-    key: "claude-3.5-sonnet",
-    sessionUsage: 73,
-    sessionReset: "Resets in 51 min",
-    allModelsUsage: 7,
-    allModelsReset: "Resets Thu 12:00 AM",
-    colorClass: "text-warning",
-    barColorClass: "bg-warning",
-    type: "cloud",
-  },
-  {
-    id: "openai",
-    name: "GPT-4o Mini",
-    key: "gpt-4o-mini",
-    sessionUsage: 21,
-    sessionReset: "Resets in 3h 12m",
-    allModelsUsage: 14,
-    allModelsReset: "Resets Sat 12:00 AM",
-    colorClass: "text-success",
-    barColorClass: "bg-success",
-    type: "cloud",
-  },
-  {
-    id: "rig",
-    name: "Rig v2 Local (Gemma)",
-    key: "gemma4:e2b-mlx",
-    sessionUsage: 52,
-    sessionReset: "Active MLX Metal Cache",
-    allModelsUsage: 38,
-    allModelsReset: "RAM: 6.1 GB / 16 GB",
-    colorClass: "text-primary",
-    barColorClass: "bg-primary",
-    type: "local",
-  },
-];
 
 export function ModelUsageView() {
   const { selectedModel, setSelectedModel, ollamaEndpoint } = useAppStore();
-  const [selectedPresetId, setSelectedPresetId] = useState<string>("claude");
-
-  const currentPreset =
-    PRESETS.find((p) => p.id === selectedPresetId) || PRESETS[0];
 
   const {
     data: localModels,
     isLoading: loadingModels,
+    isError,
+    error,
     refetch,
   } = useQuery({
     queryKey: ["ollama-models", ollamaEndpoint],
@@ -91,194 +36,121 @@ export function ModelUsageView() {
     },
   });
 
+  const activeModelDetails = localModels?.find((m) => m.name === selectedModel);
+
   return (
-    <div className="flex flex-col h-full overflow-y-auto custom-scrollbar p-5 space-y-5">
-      <div className="flex items-center justify-between pb-3 border-b border-border">
-        <div className="flex items-center gap-2">
-          <div className="p-2 rounded-xl bg-primary/10 text-primary border border-primary/20">
-            <Sparkles className="w-4 h-4" />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">
-              AI Engines & Quotas
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              Monitor real-time session limits, cloud quotas, and local LLM runtimes
-            </p>
-          </div>
-        </div>
-
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => refetch()}
-          className="h-8 gap-1 text-xs"
-        >
-          <RefreshCw
-            className={cn("w-3.5 h-3.5", loadingModels && "animate-spin")}
-          />
-          Refresh
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-3 gap-2">
-        {PRESETS.map((preset) => {
-          const isActive = selectedPresetId === preset.id;
-          return (
-            <button
-              key={preset.id}
-              onClick={() => setSelectedPresetId(preset.id)}
-              className={cn(
-                "p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between space-y-1.5",
-                isActive
-                  ? "border-primary bg-primary/10 shadow-sm"
-                  : "border-border bg-card hover:bg-secondary/60"
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-foreground">
-                  {preset.name.split(" ")[0]}
-                </span>
-                <span
-                  className={cn("text-xs font-bold font-mono", preset.colorClass)}
-                >
-                  {preset.sessionUsage}%
-                </span>
-              </div>
-              <div className="h-1 w-full bg-secondary rounded-full overflow-hidden">
-                <div
-                  className={cn("h-full rounded-full", preset.barColorClass)}
-                  style={{ width: `${preset.sessionUsage}%` }}
-                />
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="p-4 rounded-2xl bg-card border border-border space-y-4 shadow-sm">
+    <div className="flex flex-col h-full overflow-y-auto custom-scrollbar p-5 pb-8 space-y-4">
+      <Card className="p-4 bg-primary/5 border-primary/20 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div
-              className={cn(
-                "p-1.5 rounded-lg bg-secondary",
-                currentPreset.colorClass
-              )}
-            >
+            <div className="p-1.5 rounded-lg bg-primary/20 text-primary">
               <Zap className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-xs font-semibold text-foreground">
-                {currentPreset.name}
+              <span className="text-[10px] uppercase font-semibold tracking-wider text-muted-foreground">
+                Active Inference Engine
+              </span>
+              <h4 className="text-sm font-bold font-mono text-foreground">
+                {selectedModel}
               </h4>
-              <p className="text-[11px] text-muted-foreground font-mono">
-                {currentPreset.key}
-              </p>
             </div>
+          </div>
+          <Badge variant="default" className="text-[10px] font-mono gap-1">
+            <Check className="w-3 h-3" />
+            Ready
+          </Badge>
+        </div>
+
+        {activeModelDetails && (
+          <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-primary/15 text-xs">
+            {activeModelDetails.parameter_size && (
+              <Badge variant="secondary" className="text-[10px] font-mono">
+                {activeModelDetails.parameter_size}
+              </Badge>
+            )}
+            {activeModelDetails.quantization_level && (
+              <Badge variant="outline" className="text-[10px] font-mono">
+                {activeModelDetails.quantization_level}
+              </Badge>
+            )}
+            <div className="flex items-center gap-1 text-[11px] text-muted-foreground ml-auto font-mono">
+              <HardDrive className="w-3 h-3" />
+              {formatBytes(activeModelDetails.size)}
+            </div>
+          </div>
+        )}
+      </Card>
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Cpu className="w-4 h-4 text-primary" />
+            <h4 className="text-xs font-semibold text-foreground">
+              Installed Ollama Models ({localModels?.length || 0})
+            </h4>
           </div>
 
           <Button
+            variant="ghost"
             size="sm"
-            variant={selectedModel === currentPreset.key ? "secondary" : "primary"}
-            className="h-7 text-xs gap-1"
-            onClick={() => setSelectedModel(currentPreset.key)}
+            onClick={() => refetch()}
+            className="h-7 text-xs gap-1.5 px-2 text-muted-foreground hover:text-foreground"
           >
-            {selectedModel === currentPreset.key ? (
-              <>
-                <Check className="w-3 h-3 text-success" />
-                Active Model
-              </>
-            ) : (
-              "Set Active"
-            )}
+            <RefreshCw
+              className={cn("w-3 h-3", loadingModels && "animate-spin")}
+            />
+            Scan Runtime
           </Button>
         </div>
 
-        <div className="space-y-3 pt-2">
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground font-medium">
-                Current session
-              </span>
-              <span className="text-xs text-muted-foreground font-mono flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                {currentPreset.sessionReset}
-              </span>
-            </div>
-            <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-              <div
-                className={cn(
-                  "h-full rounded-full transition-all duration-300",
-                  currentPreset.barColorClass
-                )}
-                style={{ width: `${currentPreset.sessionUsage}%` }}
-              />
-            </div>
-            <div className="text-xs font-semibold text-foreground font-mono">
-              {currentPreset.sessionUsage}% Used
-            </div>
+        {loadingModels ? (
+          <div className="py-12 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-2">
+            <Sparkles className="w-5 h-5 text-primary animate-pulse" />
+            Scanning local Ollama models...
           </div>
-
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground font-medium">
-                All models / System pool
-              </span>
-              <span className="text-xs text-muted-foreground font-mono">
-                {currentPreset.allModelsReset}
-              </span>
-            </div>
-            <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-              <div
-                className="h-full bg-success rounded-full transition-all duration-300"
-                style={{ width: `${currentPreset.allModelsUsage}%` }}
-              />
-            </div>
-            <div className="text-xs font-semibold text-foreground font-mono">
-              {currentPreset.allModelsUsage}% Used
-            </div>
+        ) : isError ? (
+          <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-xs text-destructive space-y-1">
+            <p className="font-semibold">Ollama Daemon Unreachable</p>
+            <p className="text-muted-foreground">
+              Make sure Ollama is running (`ollama serve`) at {ollamaEndpoint}.
+            </p>
           </div>
-        </div>
-      </div>
-
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between">
-          <h4 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-            <Cpu className="w-3.5 h-3.5 text-primary" />
-            Detected Local Ollama Models
-          </h4>
-          <span className="text-[11px] text-muted-foreground">
-            {localModels ? `${localModels.length} models ready` : "Scanning..."}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {localModels?.map((model) => {
-            const isCurrent = selectedModel === model.name;
-            return (
-              <div
-                key={model.name}
-                onClick={() => setSelectedModel(model.name)}
-                className={cn(
-                  "p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between space-y-2",
-                  isCurrent
-                    ? "border-primary bg-primary/5 shadow-sm"
-                    : "border-border bg-card hover:bg-secondary/60"
-                )}
-              >
-                <div className="flex items-start justify-between gap-1">
-                  <div className="space-y-0.5">
-                    <span className="text-xs font-mono font-semibold text-foreground">
-                      {model.name}
-                    </span>
-                    {model.parameter_size && (
-                      <div className="flex items-center gap-1">
-                        <Badge
-                          variant="secondary"
-                          className="text-[10px] px-1.5 py-0 font-mono"
-                        >
-                          {model.parameter_size}
-                        </Badge>
+        ) : !localModels || localModels.length === 0 ? (
+          <div className="py-12 text-center text-xs text-muted-foreground space-y-2">
+            <p>No models detected on host.</p>
+            <code className="px-2 py-1 rounded bg-secondary text-foreground text-[11px] font-mono">
+              ollama run llama3.2
+            </code>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {localModels.map((model) => {
+              const isCurrent = selectedModel === model.name;
+              return (
+                <button
+                  key={model.name}
+                  onClick={() => setSelectedModel(model.name)}
+                  className={cn(
+                    "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between space-y-2 outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    isCurrent
+                      ? "border-primary bg-primary/10 shadow-sm ring-1 ring-primary/30"
+                      : "border-border bg-card hover:bg-secondary/60"
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-1">
+                    <div className="space-y-1 min-w-0">
+                      <span className="text-xs font-mono font-bold text-foreground block truncate">
+                        {model.name}
+                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {model.parameter_size && (
+                          <Badge
+                            variant="secondary"
+                            className="text-[10px] px-1.5 py-0 font-mono"
+                          >
+                            {model.parameter_size}
+                          </Badge>
+                        )}
                         {model.quantization_level && (
                           <Badge
                             variant="outline"
@@ -288,23 +160,24 @@ export function ModelUsageView() {
                           </Badge>
                         )}
                       </div>
+                    </div>
+
+                    {isCurrent && (
+                      <div className="h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
+                        <Check className="h-3 w-3" />
+                      </div>
                     )}
                   </div>
-                  {isCurrent && (
-                    <div className="h-4 w-4 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
-                      <Check className="h-2.5 w-2.5" />
-                    </div>
-                  )}
-                </div>
 
-                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pt-1 border-t border-border/40">
-                  <HardDrive className="h-3 w-3" />
-                  <span>{formatBytes(model.size)}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pt-1.5 border-t border-border/40 font-mono">
+                    <HardDrive className="h-3 w-3" />
+                    <span>{formatBytes(model.size)}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

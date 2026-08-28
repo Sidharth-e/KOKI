@@ -3,7 +3,7 @@
 import { invokeCommand } from "@/lib/tauri";
 import { ToolDefinition } from "@/lib/types";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { CheckCircle2, Play, Terminal, Wrench } from "lucide-react";
@@ -44,74 +44,76 @@ export function ToolInspector() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="py-16 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-2">
+        <Wrench className="w-5 h-5 text-primary animate-spin" />
+        Loading native tool registry...
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col space-y-1">
-        <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-          <Wrench className="h-5 w-5 text-primary" />
-          Rig Agent Native Tools
-        </h2>
-        <p className="text-xs text-muted-foreground">
-          Type-safe native tools registered in the Rust backend for zero-latency execution.
-        </p>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          Registered Rust Tools ({tools?.length || 0})
+        </span>
       </div>
 
-      {isLoading ? (
-        <div className="py-8 text-center text-xs text-muted-foreground">Loading tools...</div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {tools?.map((tool) => {
-            const hasResult = tool.name in toolResults;
-            const isExecuting = runningTool === tool.name;
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {tools?.map((tool) => {
+          const hasResult = tool.name in toolResults;
+          const isExecuting = runningTool === tool.name;
 
-            return (
-              <Card key={tool.name} className="flex flex-col justify-between">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm font-mono text-foreground flex items-center gap-1.5">
-                      <Terminal className="h-4 w-4 text-primary" />
+          return (
+            <Card key={tool.name} className="p-4 flex flex-col justify-between space-y-3">
+              <div className="space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Terminal className="h-4 w-4 text-primary shrink-0" />
+                    <span className="text-xs font-mono font-bold text-foreground truncate">
                       {tool.name}
-                    </CardTitle>
-                    <Badge variant="secondary" className="text-[10px] font-mono">
-                      Rust Native
-                    </Badge>
+                    </span>
                   </div>
-                  <CardDescription className="text-xs">{tool.description}</CardDescription>
-                </CardHeader>
+                  <Badge variant="secondary" className="text-[10px] font-mono shrink-0">
+                    Rust Native
+                  </Badge>
+                </div>
 
-                <CardContent className="space-y-3 pt-0">
-                  <div className="p-2 rounded bg-secondary/60 border border-border/60 text-[11px] font-mono overflow-x-auto text-muted-foreground">
-                    <pre>{JSON.stringify(tool.parameters, null, 2)}</pre>
-                  </div>
+                <p className="text-xs text-muted-foreground leading-snug">
+                  {tool.description}
+                </p>
+              </div>
 
-                  {hasResult && (
-                    <div className="p-2.5 rounded bg-background border border-border text-[11px] font-mono space-y-1">
-                      <div className="flex items-center gap-1 text-success text-[10px] font-semibold">
-                        <CheckCircle2 className="h-3 w-3" />
-                        Output Result
-                      </div>
-                      <pre className="overflow-x-auto text-foreground">
-                        {JSON.stringify(toolResults[tool.name], null, 2)}
-                      </pre>
+              <div className="space-y-2.5 pt-2 border-t border-border/50">
+                {hasResult && (
+                  <div className="p-2 rounded-lg bg-secondary/80 border border-border text-[11px] font-mono space-y-1">
+                    <div className="flex items-center gap-1 text-success text-[10px] font-semibold">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Output
                     </div>
-                  )}
+                    <pre className="overflow-x-auto text-foreground custom-scrollbar max-h-24">
+                      {JSON.stringify(toolResults[tool.name], null, 2)}
+                    </pre>
+                  </div>
+                )}
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full text-xs gap-1.5"
-                    disabled={isExecuting}
-                    onClick={() => handleTestTool(tool.name)}
-                  >
-                    <Play className="h-3 w-3 text-primary" />
-                    {isExecuting ? "Executing..." : "Test Run Tool"}
-                  </Button>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs gap-1.5 h-8"
+                  disabled={isExecuting}
+                  onClick={() => handleTestTool(tool.name)}
+                >
+                  <Play className="h-3 w-3 text-primary" />
+                  {isExecuting ? "Executing..." : "Test Run Tool"}
+                </Button>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }

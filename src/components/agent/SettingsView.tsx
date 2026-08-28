@@ -1,19 +1,39 @@
 "use client";
 
 import { useAppStore } from "@/store/useAppStore";
+import { invokeCommand } from "@/lib/tauri";
+import { OllamaModel } from "@/lib/types";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { ModelPicker } from "./ModelPicker";
+import { Badge } from "@/components/ui/Badge";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
-import { Check, Moon, Settings, Sparkles } from "lucide-react";
+import { Check, Cpu, Moon, Server, Sparkles } from "lucide-react";
 import { useState } from "react";
 
 export function SettingsView() {
-  const { ollamaEndpoint, setOllamaEndpoint, systemPrompt, setSystemPrompt, theme } = useAppStore();
+  const {
+    ollamaEndpoint,
+    setOllamaEndpoint,
+    systemPrompt,
+    setSystemPrompt,
+    selectedModel,
+    setSelectedModel,
+    theme,
+  } = useAppStore();
   const [endpointInput, setEndpointInput] = useState(ollamaEndpoint);
   const [promptInput, setPromptInput] = useState(systemPrompt);
   const [saved, setSaved] = useState(false);
+
+  const { data: models } = useQuery({
+    queryKey: ["ollama-models", ollamaEndpoint],
+    queryFn: async () => {
+      return await invokeCommand<OllamaModel[]>("list_ollama_models", {
+        endpoint: ollamaEndpoint,
+      });
+    },
+  });
 
   const handleSave = () => {
     setOllamaEndpoint(endpointInput);
@@ -23,77 +43,117 @@ export function SettingsView() {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl">
-      <div className="flex flex-col space-y-1">
-        <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-          <Settings className="h-5 w-5 text-primary" />
-          Assistant Configuration
-        </h2>
-        <p className="text-xs text-muted-foreground">
-          Manage your local runtime connections, models, and agent instructions.
-        </p>
-      </div>
-
-      <ModelPicker />
-
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
+    <div className="space-y-4">
+      <Card className="p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+              <Cpu className="h-4 w-4" />
+            </div>
             <div>
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Moon className="h-4 w-4 text-primary" />
-                Appearance Theme
+              <CardTitle className="text-xs font-semibold text-foreground">
+                Default Local Model
               </CardTitle>
-              <CardDescription className="text-xs">
-                Switch between dark and light appearance modes (Current: {theme})
+              <CardDescription className="text-[11px]">
+                Active model used for local inference and agents
               </CardDescription>
             </div>
-            <ThemeToggle />
           </div>
-        </CardHeader>
+          <Badge variant="outline" className="text-[10px] font-mono">
+            {selectedModel}
+          </Badge>
+        </div>
+
+        {models && models.length > 0 && (
+          <div className="pt-2 border-t border-border/50">
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="w-full h-9 rounded-lg border border-border bg-secondary/60 px-3 text-xs font-mono text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+            >
+              {models.map((m) => (
+                <option key={m.name} value={m.name} className="bg-card text-foreground">
+                  {m.name} {m.parameter_size ? `(${m.parameter_size})` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </Card>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold">Ollama Server Endpoint</CardTitle>
-          <CardDescription className="text-xs">
-            HTTP URL where your local Ollama daemon is hosted.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      <Card className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+              <Moon className="h-4 w-4" />
+            </div>
+            <div>
+              <CardTitle className="text-xs font-semibold text-foreground">
+                Appearance Theme
+              </CardTitle>
+              <CardDescription className="text-[11px]">
+                Mode: <span className="capitalize font-mono text-foreground">{theme}</span>
+              </CardDescription>
+            </div>
+          </div>
+          <ThemeToggle />
+        </div>
+      </Card>
+
+      <Card className="p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+            <Server className="h-4 w-4" />
+          </div>
+          <div>
+            <CardTitle className="text-xs font-semibold text-foreground">
+              Ollama Server Endpoint
+            </CardTitle>
+            <CardDescription className="text-[11px]">
+              Local daemon URL for model execution
+            </CardDescription>
+          </div>
+        </div>
+
+        <div className="pt-1">
           <Input
             value={endpointInput}
             onChange={(e) => setEndpointInput(e.target.value)}
             placeholder="http://127.0.0.1:11434"
-            className="font-mono text-xs"
+            className="font-mono text-xs h-9"
           />
-        </CardContent>
+        </div>
       </Card>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            Agent System Preamble
-          </CardTitle>
-          <CardDescription className="text-xs">
-            Base persona and instructions provided to the Rig agent engine.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      <Card className="p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+            <Sparkles className="h-4 w-4" />
+          </div>
+          <div>
+            <CardTitle className="text-xs font-semibold text-foreground">
+              Agent System Preamble
+            </CardTitle>
+            <CardDescription className="text-[11px]">
+              Base instructions for the Rig AI reasoning agent
+            </CardDescription>
+          </div>
+        </div>
+
+        <div className="space-y-3 pt-1">
           <textarea
             value={promptInput}
             onChange={(e) => setPromptInput(e.target.value)}
-            rows={4}
-            className="w-full resize-none rounded-lg border border-input bg-background p-3 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            rows={3}
+            className="w-full resize-none rounded-lg border border-input bg-secondary/30 p-3 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring custom-scrollbar"
           />
           <div className="flex justify-end">
-            <Button variant="primary" size="sm" onClick={handleSave} className="gap-1.5 text-xs">
-              {saved ? <Check className="h-3.5 w-3.5 text-success-foreground" /> : null}
+            <Button variant="primary" size="sm" onClick={handleSave} className="gap-1.5 text-xs h-8">
+              {saved ? <Check className="h-3.5 w-3.5 text-primary-foreground" /> : null}
               {saved ? "Saved" : "Save Changes"}
             </Button>
           </div>
-        </CardContent>
+        </div>
       </Card>
     </div>
   );
