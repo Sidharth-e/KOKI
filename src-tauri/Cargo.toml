@@ -1,0 +1,25 @@
+[package]
+name = "koki-assistant"
+version = "0.1.0"
+description = "Personal AI Assistant with Tauri v2, Rig & Next.js"
+authors = ["Sidharth"]
+edition = "2021"
+
+[lib]
+name = "koki_assistant_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", features = ["json", "stream"] }
+sysinfo = "0.33"
+futures-util = "0.3"
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "2"
