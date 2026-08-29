@@ -1,7 +1,11 @@
-import { ButtonHTMLAttributes, forwardRef } from "react";
-import { cn } from "@/lib/utils";
+"use client";
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+import { forwardRef } from "react";
+import { cn } from "@/lib/utils";
+import { microSpring } from "@/lib/animations";
+import { motion, HTMLMotionProps } from "motion/react";
+
+export interface ButtonProps extends HTMLMotionProps<"button"> {
   variant?: "primary" | "secondary" | "tertiary" | "outline" | "ghost" | "error" | "success";
   size?: "sm" | "md" | "lg" | "icon";
 }
@@ -29,9 +33,12 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     };
 
     return (
-      <button
+      <motion.button
         ref={ref}
         disabled={disabled}
+        whileTap={disabled ? undefined : { scale: 0.97 }}
+        whileHover={disabled ? undefined : { scale: 1.015 }}
+        transition={microSpring}
         className={cn(baseStyles, variantStyles[variant], sizeStyles[size], className)}
         {...props}
       />
@@ -40,3 +47,4 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 );
 
 Button.displayName = "Button";
+

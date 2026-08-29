@@ -1,6 +1,8 @@
 import { ChatMessage } from "@/lib/types";
 import { ToolCallCard } from "./ToolCallCard";
 import { MarkdownRenderer } from "@/components/ui/MarkdownRenderer";
+import { gentleSpring, microSpring } from "@/lib/animations";
+import { motion, AnimatePresence } from "motion/react";
 import { Check, ChevronDown, ChevronUp, Copy, FileText } from "lucide-react";
 import { useState } from "react";
 
@@ -25,7 +27,12 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
 
   if (!isAssistant) {
     return (
-      <div className="flex flex-col items-end w-full group space-y-2">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={gentleSpring}
+        className="flex flex-col items-end w-full group space-y-2"
+      >
         {message.attachment && (
           <div className="max-w-[85%] rounded-xl bg-secondary/90 border border-border px-3.5 py-2.5 shadow-xs space-y-2">
             <div className="flex items-center justify-between gap-3">
@@ -55,14 +62,22 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
               )}
             </div>
 
-            {showDocPreview && message.attachment.content && (
-              <div className="rounded-lg bg-background/80 border border-border/80 p-2.5 max-h-48 overflow-y-auto custom-scrollbar">
-                <pre className="text-[11px] text-muted-foreground whitespace-pre-wrap font-mono break-words">
-                  {message.attachment.content.slice(0, 3000)}
-                  {message.attachment.content.length > 3000 && "\n... [truncated for preview]"}
-                </pre>
-              </div>
-            )}
+            <AnimatePresence>
+              {showDocPreview && message.attachment.content && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="rounded-lg bg-background/80 border border-border/80 p-2.5 max-h-48 overflow-y-auto custom-scrollbar"
+                >
+                  <pre className="text-[11px] text-muted-foreground whitespace-pre-wrap font-mono break-words">
+                    {message.attachment.content.slice(0, 3000)}
+                    {message.attachment.content.length > 3000 && "\n... [truncated for preview]"}
+                  </pre>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
 
@@ -72,7 +87,10 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
               {message.content}
             </div>
             <div className="absolute right-2 -bottom-6 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 z-10">
-              <button
+              <motion.button
+                whileHover={{ scale: 1.15 }}
+                whileTap={{ scale: 0.9 }}
+                transition={microSpring}
                 onClick={handleCopy}
                 className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors cursor-pointer"
                 title="Copy message"
@@ -82,16 +100,21 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
                 ) : (
                   <Copy className="h-3 w-3" />
                 )}
-              </button>
+              </motion.button>
             </div>
           </div>
         )}
-      </div>
+      </motion.div>
     );
   }
 
   return (
-    <div className="w-full space-y-2.5 group">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={gentleSpring}
+      className="w-full space-y-2.5 group"
+    >
       {message.toolCalls && message.toolCalls.length > 0 && (
         <div className="space-y-1.5 my-2 max-w-full">
           {message.toolCalls.map((toolCall, idx) => (
@@ -112,7 +135,10 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
         </div>
 
         <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-          <button
+          <motion.button
+            whileHover={{ scale: 1.15 }}
+            whileTap={{ scale: 0.9 }}
+            transition={microSpring}
             onClick={handleCopy}
             className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors cursor-pointer"
             title="Copy response"
@@ -122,11 +148,12 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
             ) : (
               <Copy className="h-3 w-3" />
             )}
-          </button>
+          </motion.button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
+
 
 

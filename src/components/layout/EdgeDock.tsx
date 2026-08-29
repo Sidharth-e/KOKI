@@ -2,6 +2,8 @@
 
 import { useAppStore, ActiveDockPanel } from "@/store/useAppStore";
 import { cn } from "@/lib/utils";
+import { microSpring } from "@/lib/animations";
+import { motion } from "motion/react";
 import {
   Activity,
   Bot,
@@ -50,19 +52,33 @@ export function EdgeDock() {
             const isActive = activePanel === item.id;
 
             return (
-              <button
+              <motion.button
                 key={item.id}
                 onClick={() => togglePanel(item.id)}
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.94 }}
+                transition={microSpring}
                 className={cn(
-                  "w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer",
+                  "w-10 h-10 rounded-full flex items-center justify-center cursor-pointer relative transition-colors",
                   isActive
-                    ? "bg-primary text-primary-foreground shadow-lg ring-2 ring-primary/40 scale-105"
-                    : "bg-secondary text-muted-foreground hover:text-foreground hover:scale-105 hover:bg-secondary/80"
+                    ? "text-primary-foreground"
+                    : "bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80"
                 )}
                 title={item.label}
               >
-                <Icon className="w-5 h-5" />
-              </button>
+                {isActive && (
+                  <motion.div
+                    layoutId="activeDockIndicator"
+                    className="absolute inset-0 rounded-full bg-primary shadow-lg ring-2 ring-primary/40"
+                    transition={{
+                      type: "spring",
+                      stiffness: 450,
+                      damping: 32,
+                    }}
+                  />
+                )}
+                <Icon className="w-5 h-5 relative z-10" />
+              </motion.button>
             );
           })}
         </div>

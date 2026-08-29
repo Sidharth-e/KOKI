@@ -6,6 +6,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { staggerContainer, staggerItem, microSpring } from "@/lib/animations";
+import { motion, AnimatePresence } from "motion/react";
 import {
   AlertCircle,
   Calculator,
@@ -148,22 +150,31 @@ export function ToolInspector() {
         </span>
         <div className="flex items-center gap-1.5 flex-wrap">
           {categories.map((cat) => (
-            <button
+            <motion.button
               key={cat}
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.95 }}
+              transition={microSpring}
               onClick={() => setActiveCategory(cat)}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+              className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
                 activeCategory === cat
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80"
               }`}
             >
               {cat}
-            </button>
+            </motion.button>
           ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <motion.div
+        key={activeCategory}
+        variants={staggerContainer}
+        initial="hidden"
+        animate="visible"
+        className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+      >
         {filteredTools.map((tool) => {
           const hasResult = tool.name in toolResults;
           const isExecuting = runningTool === tool.name;
@@ -174,64 +185,66 @@ export function ToolInspector() {
           const imageDataUri = (result?.image_data_uri as string) || undefined;
 
           return (
-            <Card key={tool.name} className="p-4 flex flex-col justify-between space-y-3">
-              <div className="space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <div className="h-6 w-6 rounded bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                      <Icon className="h-3.5 w-3.5" />
+            <motion.div key={tool.name} variants={staggerItem}>
+              <Card className="p-4 flex flex-col justify-between space-y-3 h-full">
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <div className="h-6 w-6 rounded bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                        <Icon className="h-3.5 w-3.5" />
+                      </div>
+                      <span className="text-xs font-mono font-bold text-foreground truncate">
+                        {tool.name}
+                      </span>
                     </div>
-                    <span className="text-xs font-mono font-bold text-foreground truncate">
-                      {tool.name}
-                    </span>
+                    <Badge variant="secondary" className="text-[10px] font-mono shrink-0">
+                      {category}
+                    </Badge>
                   </div>
-                  <Badge variant="secondary" className="text-[10px] font-mono shrink-0">
-                    {category}
-                  </Badge>
+
+                  <p className="text-xs text-muted-foreground leading-snug">
+                    {tool.description}
+                  </p>
                 </div>
 
-                <p className="text-xs text-muted-foreground leading-snug">
-                  {tool.description}
-                </p>
-              </div>
-
-              <div className="space-y-2.5 pt-2 border-t border-border/50">
-                {hasResult && (
-                  <div className="p-2.5 rounded-lg bg-secondary/80 border border-border text-[11px] font-mono space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <div className={`flex items-center gap-1 text-[10px] font-semibold ${isError ? "text-destructive" : "text-success"}`}>
-                        {isError ? <AlertCircle className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}
-                        {isError ? "Error" : "Output"}
+                <div className="space-y-2.5 pt-2 border-t border-border/50">
+                  {hasResult && (
+                    <div className="p-2.5 rounded-lg bg-secondary/80 border border-border text-[11px] font-mono space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className={`flex items-center gap-1 text-[10px] font-semibold ${isError ? "text-destructive" : "text-success"}`}>
+                          {isError ? <AlertCircle className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}
+                          {isError ? "Error" : "Output"}
+                        </div>
                       </div>
+
+                      {imageDataUri ? (
+                        <div className="border border-border rounded overflow-hidden max-h-32 bg-black/40 flex items-center justify-center">
+                          <img src={imageDataUri} alt="Captured preview" className="object-contain max-h-32 w-full" />
+                        </div>
+                      ) : (
+                        <pre className="overflow-x-auto text-foreground custom-scrollbar max-h-32 text-[10px]">
+                          {JSON.stringify(toolResults[tool.name], null, 2)}
+                        </pre>
+                      )}
                     </div>
+                  )}
 
-                    {imageDataUri ? (
-                      <div className="border border-border rounded overflow-hidden max-h-32 bg-black/40 flex items-center justify-center">
-                        <img src={imageDataUri} alt="Captured preview" className="object-contain max-h-32 w-full" />
-                      </div>
-                    ) : (
-                      <pre className="overflow-x-auto text-foreground custom-scrollbar max-h-32 text-[10px]">
-                        {JSON.stringify(toolResults[tool.name], null, 2)}
-                      </pre>
-                    )}
-                  </div>
-                )}
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full text-xs gap-1.5 h-8"
-                  disabled={isExecuting}
-                  onClick={() => handleTestTool(tool.name)}
-                >
-                  <Play className="h-3 w-3 text-primary" />
-                  {isExecuting ? "Executing..." : "Test Run"}
-                </Button>
-              </div>
-            </Card>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs gap-1.5 h-8"
+                    disabled={isExecuting}
+                    onClick={() => handleTestTool(tool.name)}
+                  >
+                    <Play className="h-3 w-3 text-primary" />
+                    {isExecuting ? "Executing..." : "Test Run"}
+                  </Button>
+                </div>
+              </Card>
+            </motion.div>
           );
         })}
-      </div>
+      </motion.div>
     </div>
   );
 }

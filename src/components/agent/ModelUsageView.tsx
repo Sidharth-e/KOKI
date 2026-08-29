@@ -9,6 +9,8 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { staggerContainer, staggerItem, microSpring } from "@/lib/animations";
+import { motion } from "motion/react";
 import {
   Check,
   Cpu,
@@ -123,60 +125,69 @@ export function ModelUsageView() {
             </code>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {localModels.map((model) => {
-              const isCurrent = selectedModel === model.name;
-              return (
-                <button
-                  key={model.name}
-                  onClick={() => setSelectedModel(model.name)}
-                  className={cn(
-                    "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between space-y-2 outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    isCurrent
-                      ? "border-primary bg-primary/10 shadow-sm ring-1 ring-primary/30"
-                      : "border-border bg-card hover:bg-secondary/60"
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-1">
-                    <div className="space-y-1 min-w-0">
-                      <span className="text-xs font-mono font-bold text-foreground block truncate">
-                        {model.name}
-                      </span>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {model.parameter_size && (
-                          <Badge
-                            variant="secondary"
-                            className="text-[10px] px-1.5 py-0 font-mono"
-                          >
-                            {model.parameter_size}
-                          </Badge>
-                        )}
-                        {model.quantization_level && (
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] px-1.5 py-0 font-mono"
-                          >
-                            {model.quantization_level}
-                          </Badge>
-                        )}
+            <motion.div
+              variants={staggerContainer}
+              initial="hidden"
+              animate="visible"
+              className="grid grid-cols-1 sm:grid-cols-2 gap-2.5"
+            >
+              {localModels.map((model) => {
+                const isCurrent = selectedModel === model.name;
+                return (
+                  <motion.button
+                    key={model.name}
+                    variants={staggerItem}
+                    whileHover={{ scale: 1.015 }}
+                    whileTap={{ scale: 0.98 }}
+                    transition={microSpring}
+                    onClick={() => setSelectedModel(model.name)}
+                    className={cn(
+                      "p-3 rounded-xl border text-left transition-colors cursor-pointer flex flex-col justify-between space-y-2 outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      isCurrent
+                        ? "border-primary bg-primary/10 shadow-sm ring-1 ring-primary/30"
+                        : "border-border bg-card hover:bg-secondary/60"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-1">
+                      <div className="space-y-1 min-w-0">
+                        <span className="text-xs font-mono font-bold text-foreground block truncate">
+                          {model.name}
+                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {model.parameter_size && (
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] px-1.5 py-0 font-mono"
+                            >
+                              {model.parameter_size}
+                            </Badge>
+                          )}
+                          {model.quantization_level && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] px-1.5 py-0 font-mono"
+                            >
+                              {model.quantization_level}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
+
+                      {isCurrent && (
+                        <div className="h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
+                          <Check className="h-3 w-3" />
+                        </div>
+                      )}
                     </div>
 
-                    {isCurrent && (
-                      <div className="h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
-                        <Check className="h-3 w-3" />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pt-1.5 border-t border-border/40 font-mono">
-                    <HardDrive className="h-3 w-3" />
-                    <span>{formatBytes(model.size)}</span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pt-1.5 border-t border-border/40 font-mono">
+                      <HardDrive className="w-3 h-3" />
+                      <span>{formatBytes(model.size)}</span>
+                    </div>
+                  </motion.button>
+                );
+              })}
+            </motion.div>
         )}
       </div>
     </div>

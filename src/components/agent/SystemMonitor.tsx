@@ -4,8 +4,10 @@ import { invokeCommand } from "@/lib/tauri";
 import { SystemMetrics } from "@/lib/types";
 import { formatBytes, formatUptime } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Card, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { staggerContainer, staggerItem } from "@/lib/animations";
+import { motion } from "motion/react";
 import { Clock, Cpu, HardDrive, Laptop, Server, Zap } from "lucide-react";
 
 export function SystemMonitor() {
@@ -30,114 +32,127 @@ export function SystemMonitor() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Card className="p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
-                <Cpu className="h-4 w-4" />
+      <motion.div
+        variants={staggerContainer}
+        initial="hidden"
+        animate="visible"
+        className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+      >
+        <motion.div variants={staggerItem}>
+          <Card className="p-4 space-y-3 h-full">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                  <Cpu className="h-4 w-4" />
+                </div>
+                <CardTitle className="text-xs font-semibold text-foreground">
+                  CPU Utilization
+                </CardTitle>
               </div>
-              <CardTitle className="text-xs font-semibold text-foreground">
-                CPU Utilization
-              </CardTitle>
+              <Badge variant={metrics.cpu_usage_percent > 80 ? "error" : "secondary"} className="text-[10px] font-mono">
+                {metrics.cpu_count} Cores
+              </Badge>
             </div>
-            <Badge variant={metrics.cpu_usage_percent > 80 ? "error" : "secondary"} className="text-[10px] font-mono">
-              {metrics.cpu_count} Cores
-            </Badge>
-          </div>
 
-          <div>
-            <div className="text-2xl font-bold font-mono text-foreground tracking-tight">
-              {metrics.cpu_usage_percent.toFixed(1)}%
-            </div>
-            <div className="w-full bg-secondary h-2 rounded-full overflow-hidden mt-2">
-              <div
-                className="bg-primary h-full rounded-full transition-all duration-300"
-                style={{ width: `${Math.min(metrics.cpu_usage_percent, 100)}%` }}
-              />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
-                <HardDrive className="h-4 w-4" />
+            <div>
+              <div className="text-2xl font-bold font-mono text-foreground tracking-tight">
+                {metrics.cpu_usage_percent.toFixed(1)}%
               </div>
-              <CardTitle className="text-xs font-semibold text-foreground">
-                RAM Consumption
-              </CardTitle>
-            </div>
-            <Badge variant={metrics.memory_usage_percent > 85 ? "warning" : "secondary"} className="text-[10px] font-mono">
-              {metrics.memory_usage_percent.toFixed(0)}%
-            </Badge>
-          </div>
-
-          <div>
-            <div className="text-2xl font-bold font-mono text-foreground tracking-tight">
-              {formatBytes(metrics.used_memory_mb * 1024 * 1024, 1)}
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              of {formatBytes(metrics.total_memory_mb * 1024 * 1024, 1)} total
-            </p>
-            <div className="w-full bg-secondary h-2 rounded-full overflow-hidden mt-2">
-              <div
-                className="bg-primary h-full rounded-full transition-all duration-300"
-                style={{ width: `${Math.min(metrics.memory_usage_percent, 100)}%` }}
-              />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
-                <Laptop className="h-4 w-4" />
+              <div className="w-full bg-secondary h-2 rounded-full overflow-hidden mt-2">
+                <div
+                  className="bg-primary h-full rounded-full transition-all duration-300"
+                  style={{ width: `${Math.min(metrics.cpu_usage_percent, 100)}%` }}
+                />
               </div>
-              <CardTitle className="text-xs font-semibold text-foreground">
-                Host OS & Kernel
-              </CardTitle>
             </div>
-            <Badge variant="secondary" className="text-[10px] font-mono">
-              Native
-            </Badge>
-          </div>
+          </Card>
+        </motion.div>
 
-          <div className="space-y-1">
-            <div className="text-sm font-semibold font-mono text-foreground truncate">
-              {metrics.os_name}
-            </div>
-            <p className="text-[11px] text-muted-foreground truncate">
-              Kernel Build: {metrics.os_version || "Darwin ARM64"}
-            </p>
-          </div>
-        </Card>
-
-        <Card className="p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
-                <Clock className="h-4 w-4" />
+        <motion.div variants={staggerItem}>
+          <Card className="p-4 space-y-3 h-full">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                  <HardDrive className="h-4 w-4" />
+                </div>
+                <CardTitle className="text-xs font-semibold text-foreground">
+                  RAM Consumption
+                </CardTitle>
               </div>
-              <CardTitle className="text-xs font-semibold text-foreground">
-                Host Uptime
-              </CardTitle>
+              <Badge variant={metrics.memory_usage_percent > 85 ? "warning" : "secondary"} className="text-[10px] font-mono">
+                {metrics.memory_usage_percent.toFixed(0)}%
+              </Badge>
             </div>
-            <Badge variant="secondary" className="text-[10px] font-mono">
-              Running
-            </Badge>
-          </div>
 
-          <div className="space-y-1">
-            <div className="text-2xl font-bold font-mono text-foreground tracking-tight">
-              {formatUptime(metrics.uptime_seconds)}
+            <div>
+              <div className="text-2xl font-bold font-mono text-foreground tracking-tight">
+                {formatBytes(metrics.used_memory_mb * 1024 * 1024, 1)}
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                of {formatBytes(metrics.total_memory_mb * 1024 * 1024, 1)} total
+              </p>
+              <div className="w-full bg-secondary h-2 rounded-full overflow-hidden mt-2">
+                <div
+                  className="bg-primary h-full rounded-full transition-all duration-300"
+                  style={{ width: `${Math.min(metrics.memory_usage_percent, 100)}%` }}
+                />
+              </div>
             </div>
-            <p className="text-[11px] text-muted-foreground">Continuous system runtime</p>
-          </div>
-        </Card>
-      </div>
+          </Card>
+        </motion.div>
+
+        <motion.div variants={staggerItem}>
+          <Card className="p-4 space-y-3 h-full">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                  <Laptop className="h-4 w-4" />
+                </div>
+                <CardTitle className="text-xs font-semibold text-foreground">
+                  Host OS & Kernel
+                </CardTitle>
+              </div>
+              <Badge variant="secondary" className="text-[10px] font-mono">
+                Native
+              </Badge>
+            </div>
+
+            <div className="space-y-1">
+              <div className="text-sm font-semibold font-mono text-foreground truncate">
+                {metrics.os_name}
+              </div>
+              <p className="text-[11px] text-muted-foreground truncate">
+                Kernel Build: {metrics.os_version || "Darwin ARM64"}
+              </p>
+            </div>
+          </Card>
+        </motion.div>
+
+        <motion.div variants={staggerItem}>
+          <Card className="p-4 space-y-3 h-full">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                  <Clock className="h-4 w-4" />
+                </div>
+                <CardTitle className="text-xs font-semibold text-foreground">
+                  Host Uptime
+                </CardTitle>
+              </div>
+              <Badge variant="secondary" className="text-[10px] font-mono">
+                Running
+              </Badge>
+            </div>
+
+            <div className="space-y-1">
+              <div className="text-2xl font-bold font-mono text-foreground tracking-tight">
+                {formatUptime(metrics.uptime_seconds)}
+              </div>
+              <p className="text-[11px] text-muted-foreground">Continuous system runtime</p>
+            </div>
+          </Card>
+        </motion.div>
+      </motion.div>
 
       <Card className="p-4 space-y-3">
         <div className="flex items-center justify-between">
