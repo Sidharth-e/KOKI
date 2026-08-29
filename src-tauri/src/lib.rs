@@ -15,20 +15,12 @@ pub fn run() {
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
                 if let Ok(Some(monitor)) = window.current_monitor() {
-                    let scale_factor = monitor.scale_factor();
                     let size = monitor.size();
-                    let screen_w = size.width as f64 / scale_factor;
-                    let screen_h = size.height as f64 / scale_factor;
-                    let panel_w = 760.0;
-                    let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
-                        width: panel_w,
-                        height: screen_h,
-                    }));
-                    let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition {
-                        x: screen_w - panel_w,
-                        y: 0.0,
-                    }));
+                    let _ = window.set_size(tauri::Size::Physical(size.clone()));
+                    let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x: 0, y: 0 }));
                 }
+
+                let _ = window.set_resizable(false);
 
                 #[cfg(target_os = "macos")]
                 {
@@ -42,9 +34,53 @@ pub fn run() {
                             let clear_color = NSColor::clearColor();
                             let _: () = msg_send![ns_window, setBackgroundColor: &*clear_color];
                             let _: () = msg_send![ns_window, setOpaque: false];
+                            let _: () = msg_send![ns_window, setMovable: false];
+                            let _: () = msg_send![ns_window, setMovableByWindowBackground: false];
                         }
                     }
                 }
+
+                let win_clone = window.clone();
+                std::thread::spawn(move || {
+                    use std::sync::atomic::Ordering;
+                    use crate::commands::system_cmds::WINDOW_MODE;
+
+                    let mut currently_ignoring = false;
+                    loop {
+                        std::thread::sleep(std::time::Duration::from_millis(30));
+                        let mode = WINDOW_MODE.load(Ordering::Relaxed);
+                        if mode == 2 {
+                            if currently_ignoring {
+                                let _ = win_clone.set_ignore_cursor_events(false);
+                                currently_ignoring = false;
+                            }
+                            continue;
+                        }
+
+                        #[cfg(target_os = "macos")]
+                        {
+                            use objc2_app_kit::NSEvent;
+                            use objc2_foundation::NSPoint;
+
+                            let mouse_pos: NSPoint = unsafe { NSEvent::mouseLocation() };
+                            let active_width = if mode == 1 { 760.0 } else { 80.0 };
+
+                            if let Ok(Some(monitor)) = win_clone.current_monitor() {
+                                let scale_factor = monitor.scale_factor();
+                                let screen_w = monitor.size().width as f64 / scale_factor;
+                                let interactive_min_x = screen_w - active_width;
+
+                                let should_capture = mouse_pos.x >= interactive_min_x;
+                                let should_ignore = !should_capture;
+
+                                if should_ignore != currently_ignoring {
+                                    let _ = win_clone.set_ignore_cursor_events(should_ignore);
+                                    currently_ignoring = should_ignore;
+                                }
+                            }
+                        }
+                    }
+                });
             }
             Ok(())
         })

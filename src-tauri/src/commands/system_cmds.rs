@@ -1,54 +1,18 @@
 use crate::models::{OllamaModel, OllamaTagsResponse, SystemMetrics};
 use reqwest::Client;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Duration;
 use sysinfo::System;
-use tauri::{command, AppHandle, Manager};
+use tauri::{command, AppHandle};
+
+pub static WINDOW_MODE: AtomicU8 = AtomicU8::new(1);
 
 #[command]
-pub async fn set_window_mode(app_handle: AppHandle, mode: String) -> Result<(), String> {
-    if let Some(window) = app_handle.get_webview_window("main") {
-        if let Ok(Some(monitor)) = window.current_monitor() {
-            let scale_factor = monitor.scale_factor();
-            let size = monitor.size();
-            let screen_w = size.width as f64 / scale_factor;
-            let screen_h = size.height as f64 / scale_factor;
-
-            match mode.as_str() {
-                "dock" => {
-                    let dock_w = 80.0;
-                    let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
-                        width: dock_w,
-                        height: screen_h,
-                    }));
-                    let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition {
-                        x: screen_w - dock_w,
-                        y: 0.0,
-                    }));
-                }
-                "panel" => {
-                    let panel_w = 760.0;
-                    let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
-                        width: panel_w,
-                        height: screen_h,
-                    }));
-                    let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition {
-                        x: screen_w - panel_w,
-                        y: 0.0,
-                    }));
-                }
-                "palette" | "fullscreen" => {
-                    let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
-                        width: screen_w,
-                        height: screen_h,
-                    }));
-                    let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition {
-                        x: 0.0,
-                        y: 0.0,
-                    }));
-                }
-                _ => {}
-            }
-        }
+pub async fn set_window_mode(_app_handle: AppHandle, mode: String) -> Result<(), String> {
+    match mode.as_str() {
+        "dock" => WINDOW_MODE.store(0, Ordering::SeqCst),
+        "panel" => WINDOW_MODE.store(1, Ordering::SeqCst),
+        _ => WINDOW_MODE.store(2, Ordering::SeqCst),
     }
     Ok(())
 }
