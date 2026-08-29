@@ -25,25 +25,24 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-function getToolIcon(name: string) {
-  if (name.includes("screenshot")) return Camera;
-  if (name.startsWith("mouse_")) return MousePointer;
-  if (name.startsWith("type_") || name.startsWith("press_")) return Keyboard;
-  if (name.includes("shell") || name.includes("command")) return Terminal;
-  if (name.startsWith("browser_")) return Globe;
-  if (name.includes("file") || name === "list_directory") return FileCode;
-  if (name.startsWith("clipboard_")) return Clipboard;
-  if (name === "get_system_metrics") return Cpu;
-  if (name === "get_current_time") return Clock;
-  if (name === "calculate_expression") return Calculator;
-  return Wrench;
+function ToolIcon({ name, className }: { name: string; className?: string }) {
+  if (name.includes("screenshot")) return <Camera className={className} />;
+  if (name.startsWith("mouse_")) return <MousePointer className={className} />;
+  if (name.startsWith("type_") || name.startsWith("press_")) return <Keyboard className={className} />;
+  if (name.includes("shell") || name.includes("command")) return <Terminal className={className} />;
+  if (name.startsWith("browser_")) return <Globe className={className} />;
+  if (name.includes("file") || name === "list_directory") return <FileCode className={className} />;
+  if (name.startsWith("clipboard_")) return <Clipboard className={className} />;
+  if (name === "get_system_metrics") return <Cpu className={className} />;
+  if (name === "get_current_time") return <Clock className={className} />;
+  if (name === "calculate_expression") return <Calculator className={className} />;
+  return <Wrench className={className} />;
 }
 
 export function ToolCallCard({ toolCall }: { toolCall: ToolCallInfo }) {
   const [isOpen, setIsOpen] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
 
-  const Icon = getToolIcon(toolCall.tool_name);
   const result = toolCall.result as Record<string, unknown> | undefined;
   const isError = result && ("error" in result || result.success === false);
   const imageDataUri = (result?.image_data_uri as string) || undefined;
@@ -60,7 +59,7 @@ export function ToolCallCard({ toolCall }: { toolCall: ToolCallInfo }) {
         >
           <div className="flex items-center gap-2 min-w-0">
             <div className="h-5 w-5 rounded bg-primary/10 text-primary flex items-center justify-center shrink-0">
-              <Icon className="h-3 w-3" />
+              <ToolIcon name={toolCall.tool_name} className="h-3 w-3" />
             </div>
             <span className="font-mono font-medium text-foreground truncate">
               {toolCall.tool_name}
