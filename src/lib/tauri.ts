@@ -23,6 +23,10 @@ export async function invokeCommand<T>(cmd: string, args?: Record<string, unknow
     } as T;
   }
 
+  if (cmd === "set_window_mode") {
+    return undefined as T;
+  }
+
   if (cmd === "check_ollama_status") {
     return true as T;
   }

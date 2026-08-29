@@ -15,9 +15,19 @@ pub fn run() {
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
                 if let Ok(Some(monitor)) = window.current_monitor() {
+                    let scale_factor = monitor.scale_factor();
                     let size = monitor.size();
-                    let _ = window.set_size(tauri::Size::Physical(size.clone()));
-                    let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x: 0, y: 0 }));
+                    let screen_w = size.width as f64 / scale_factor;
+                    let screen_h = size.height as f64 / scale_factor;
+                    let panel_w = 760.0;
+                    let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+                        width: panel_w,
+                        height: screen_h,
+                    }));
+                    let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition {
+                        x: screen_w - panel_w,
+                        y: 0.0,
+                    }));
                 }
 
                 #[cfg(target_os = "macos")]
@@ -42,6 +52,7 @@ pub fn run() {
             commands::agent_cmds::ask_assistant,
             commands::agent_cmds::get_available_tools,
             commands::agent_cmds::run_tool_direct,
+            commands::system_cmds::set_window_mode,
             commands::system_cmds::get_system_metrics,
             commands::system_cmds::check_ollama_status,
             commands::system_cmds::list_ollama_models
