@@ -361,6 +361,84 @@ impl ModelFactory {
             }
         }
 
+        // If tools were executed but the model produced no text yet, feed the
+        // results back so the model can synthesize a final answer.
+        if enable_tools && !executed_tools.is_empty() && accumulated_text.trim().is_empty() {
+            let mut followup_messages = messages.clone();
+
+            // Append the assistant's tool-call turn
+            let tool_calls_json: Vec<serde_json::Value> = executed_tools
+                .iter()
+                .map(|t: &ToolCallInfo| {
+                    json!({
+                        "function": {
+                            "name": t.tool_name,
+                            "arguments": t.arguments
+                        }
+                    })
+                })
+                .collect();
+
+            followup_messages.push(json!({
+                "role": "assistant",
+                "content": "",
+                "tool_calls": tool_calls_json
+            }));
+
+            // Append tool results
+            for t in &executed_tools {
+                followup_messages.push(json!({
+                    "role": "tool",
+                    "name": t.tool_name,
+                    "content": serde_json::to_string(&t.result).unwrap_or_else(|_| "{}".to_string())
+                }));
+            }
+
+            // Second pass: stream the final response (no tools to avoid loops).
+            let second_body = json!({
+                "model": model_name,
+                "messages": followup_messages,
+                "stream": true,
+                "options": { "temperature": temperature }
+            });
+
+            if let Ok(resp2) = client.post(&endpoint).json(&second_body).send().await {
+                if resp2.status().is_success() {
+                    let mut stream2 = resp2.bytes_stream();
+                    let mut line_buf2 = String::new();
+                    while let Some(chunk_result) = stream2.next().await {
+                        if let Ok(chunk_bytes) = chunk_result {
+                            let chunk_str = String::from_utf8_lossy(&chunk_bytes);
+                            line_buf2.push_str(&chunk_str);
+                            while let Some(nl) = line_buf2.find('\n') {
+                                let line = line_buf2[..nl].trim().to_string();
+                                line_buf2.drain(..=nl);
+                                if line.is_empty() { continue; }
+                                if let Ok(val) = serde_json::from_str::<serde_json::Value>(&line) {
+                                    if let Some(msg) = val.get("message") {
+                                        if let Some(content) = msg.get("content").and_then(|c| c.as_str()) {
+                                            if !content.is_empty() {
+                                                accumulated_text.push_str(content);
+                                                let _ = app.emit(
+                                                    "assistant-stream-chunk",
+                                                    StreamChunkPayload {
+                                                        session_id: session_id.to_string(),
+                                                        chunk: content.to_string(),
+                                                        is_done: false,
+                                                        error: None,
+                                                    },
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         let _ = app.emit(
             "assistant-stream-chunk",
             StreamChunkPayload {
@@ -581,6 +659,84 @@ impl ModelFactory {
                     result: final_result,
                     duration_ms: dur_ms,
                 });
+            }
+        }
+
+        // Feed tool results back for a final synthesized answer if model didn't
+        // already produce text.
+        if enable_tools && !executed_tools.is_empty() && accumulated_text.trim().is_empty() {
+            let mut followup_messages = messages.clone();
+
+            for (idx, t) in executed_tools.iter().enumerate() {
+                // Reconstruct the tool_call entries in OpenAI response shape.
+                followup_messages.push(json!({
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [{
+                        "id": format!("call_{}", idx),
+                        "type": "function",
+                        "function": {
+                            "name": t.tool_name,
+                            "arguments": serde_json::to_string(&t.arguments).unwrap_or_else(|_| "{}".into())
+                        }
+                    }]
+                }));
+                followup_messages.push(json!({
+                    "role": "tool",
+                    "tool_call_id": format!("call_{}", idx),
+                    "content": serde_json::to_string(&t.result).unwrap_or_else(|_| "{}".into())
+                }));
+            }
+
+            let second_body = json!({
+                "model": model_name,
+                "messages": followup_messages,
+                "stream": true,
+                "temperature": temperature
+            });
+
+            if let Ok(resp2) = client.post(&endpoint).json(&second_body).send().await {
+                if resp2.status().is_success() {
+                    let mut stream2 = resp2.bytes_stream();
+                    let mut line_buf2 = String::new();
+                    while let Some(chunk_result) = stream2.next().await {
+                        if let Ok(chunk_bytes) = chunk_result {
+                            let chunk_str = String::from_utf8_lossy(&chunk_bytes);
+                            line_buf2.push_str(&chunk_str);
+                            while let Some(nl) = line_buf2.find('\n') {
+                                let line = line_buf2[..nl].trim().to_string();
+                                line_buf2.drain(..=nl);
+                                if line.is_empty() || line == "data: [DONE]" { continue; }
+                                if let Some(payload) = line.strip_prefix("data: ") {
+                                    if let Ok(val) = serde_json::from_str::<serde_json::Value>(payload) {
+                                        if let Some(choices) = val.get("choices").and_then(|c| c.as_array()) {
+                                            for choice in choices {
+                                                if let Some(content) = choice
+                                                    .get("delta")
+                                                    .and_then(|d| d.get("content"))
+                                                    .and_then(|c| c.as_str())
+                                                {
+                                                    if !content.is_empty() {
+                                                        accumulated_text.push_str(content);
+                                                        let _ = app.emit(
+                                                            "assistant-stream-chunk",
+                                                            StreamChunkPayload {
+                                                                session_id: session_id.to_string(),
+                                                                chunk: content.to_string(),
+                                                                is_done: false,
+                                                                error: None,
+                                                            },
+                                                        );
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 

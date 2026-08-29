@@ -409,6 +409,52 @@ fn sync_press_key(key_str: &str, modifiers: &[String]) -> Result<serde_json::Val
     Ok(json!({ "status": "success", "key": key_str }))
 }
 
+/// Resolve the browser_runner.mjs script path.
+/// Tries (in order): env override, exe-adjacent resource, src-tauri relative, cwd fallbacks.
+fn resolve_browser_runner_path() -> Option<std::path::PathBuf> {
+    // 1. Explicit env override
+    if let Ok(p) = std::env::var("KOKI_BROWSER_RUNNER") {
+        let path = std::path::PathBuf::from(p);
+        if path.exists() {
+            return Some(path);
+        }
+    }
+
+    // 2. Next to the compiled exe (production bundle)
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            for candidate in [
+                dir.join("scripts/browser_runner.mjs"),
+                dir.join("../Resources/scripts/browser_runner.mjs"),
+                dir.join("../../scripts/browser_runner.mjs"),
+            ] {
+                if candidate.exists() {
+                    return Some(candidate);
+                }
+            }
+        }
+    }
+
+    // 3. Relative to CARGO_MANIFEST_DIR at compile time (dev builds)
+    let manifest = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let candidate = manifest.join("scripts/browser_runner.mjs");
+    if candidate.exists() {
+        return Some(candidate);
+    }
+
+    // 4. Relative to current working directory (fallback)
+    for cwd_candidate in [
+        std::path::PathBuf::from("src-tauri/scripts/browser_runner.mjs"),
+        std::path::PathBuf::from("scripts/browser_runner.mjs"),
+    ] {
+        if cwd_candidate.exists() {
+            return cwd_candidate.canonicalize().ok();
+        }
+    }
+
+    None
+}
+
 pub async fn execute_tool(name: &str, args: &serde_json::Value) -> Result<serde_json::Value, String> {
     match name {
         "take_screenshot" => {
@@ -535,9 +581,10 @@ pub async fn execute_tool(name: &str, args: &serde_json::Value) -> Result<serde_
                 "timeout": timeout
             });
 
-            let script_path = Path::new("src-tauri/scripts/browser_runner.mjs");
+            let script_path = resolve_browser_runner_path()
+                .ok_or_else(|| "browser_runner.mjs not found. Set KOKI_BROWSER_RUNNER env var or ensure scripts/ is bundled.".to_string())?;
             let mut cmd = tokio::process::Command::new("node");
-            cmd.arg(script_path).arg(payload.to_string());
+            cmd.arg(&script_path).arg(payload.to_string());
 
             let output = cmd.output().await.map_err(|e| format!("Failed to spawn node for browser navigation: {}", e))?;
             if !output.status.success() {
@@ -561,9 +608,10 @@ pub async fn execute_tool(name: &str, args: &serde_json::Value) -> Result<serde_
                 "fullPage": full_page
             });
 
-            let script_path = Path::new("src-tauri/scripts/browser_runner.mjs");
+            let script_path = resolve_browser_runner_path()
+                .ok_or_else(|| "browser_runner.mjs not found.".to_string())?;
             let mut cmd = tokio::process::Command::new("node");
-            cmd.arg(script_path).arg(payload.to_string());
+            cmd.arg(&script_path).arg(payload.to_string());
 
             let output = cmd.output().await.map_err(|e| format!("Failed to spawn node for browser screenshot: {}", e))?;
             if !output.status.success() {
@@ -596,9 +644,10 @@ pub async fn execute_tool(name: &str, args: &serde_json::Value) -> Result<serde_
                 payload["script"] = json!(scr);
             }
 
-            let script_path = Path::new("src-tauri/scripts/browser_runner.mjs");
+            let script_path = resolve_browser_runner_path()
+                .ok_or_else(|| "browser_runner.mjs not found.".to_string())?;
             let mut cmd = tokio::process::Command::new("node");
-            cmd.arg(script_path).arg(payload.to_string());
+            cmd.arg(&script_path).arg(payload.to_string());
 
             let output = cmd.output().await.map_err(|e| format!("Failed to spawn node for browser action: {}", e))?;
             if !output.status.success() {
