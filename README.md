@@ -1,6 +1,6 @@
-# KOKI — Local AI Personal Assistant
+# KOKI — Keeps Ollama Kinda Intelligent
 
-**KOKI** is a local-first AI personal assistant desktop application built with **Tauri v2 (Rust)** and **Next.js 15 (React 19 / TypeScript)** in a unified single repository.
+> **K.O.K.I.** (**K**eeps **O**llama **K**inda **I**ntelligent) is a local-first AI personal assistant desktop application built with **Tauri v2 (Rust)** and **Next.js 15 (React 19 / TypeScript)** in a unified single repository.
 
 Powered by a native Rust agentic engine inspired by **Rig**, KOKI connects directly to local inference runtimes like **Ollama** to provide token streaming, type-safe native tool execution, and real-time hardware telemetry with zero cloud latency and complete data privacy.
 
