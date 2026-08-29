@@ -56,9 +56,10 @@ impl AvoEngine {
         let task_id = format!("task_{}", Uuid::new_v4().simple());
         let mut all_tool_calls = Vec::new();
 
-        self.graph_memory
+        let _ = self
+            .graph_memory
             .add_task(session_id, &task_id, &req.prompt)
-            .await?;
+            .await;
 
         let _ = app.emit(
             "assistant-supervisor-event",
