@@ -4,13 +4,17 @@ pub mod models;
 
 use agent::AgentEngine;
 use commands::agent_cmds::AgentState;
+use models::ModelConfig;
+use std::sync::Arc;
 use tauri::Manager;
+use tokio::sync::RwLock;
 
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .manage(AgentState {
             engine: AgentEngine::default(),
+            active_config: Arc::new(RwLock::new(ModelConfig::default())),
         })
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
@@ -85,6 +89,10 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::agent_cmds::get_model_config,
+            commands::agent_cmds::save_model_config,
+            commands::agent_cmds::test_model_connection,
+            commands::agent_cmds::list_models_for_config,
             commands::agent_cmds::ask_assistant,
             commands::agent_cmds::get_available_tools,
             commands::agent_cmds::run_tool_direct,

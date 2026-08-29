@@ -58,14 +58,14 @@ const PANEL_META: Record<NonNullable<ActiveDockPanel>, PanelMeta> = {
   },
   settings: {
     title: "Configuration",
-    subtitle: "Ollama Endpoints & System Prompts",
+    subtitle: "Model Factory, Cloud / Local & System Prompts",
     icon: Settings,
     arrowClass: "top-[calc(50%+104px)]",
   },
 };
 
 export function EdgePanel() {
-  const { activePanel, setActivePanel, selectedModel } = useAppStore();
+  const { activePanel, setActivePanel, selectedModel, modelConfig } = useAppStore();
   const { messages, clearMessages, resetSession } = useChatStore();
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -115,7 +115,7 @@ export function EdgePanel() {
                       {meta.title}
                     </h3>
                     <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono">
-                      {selectedModel}
+                      {selectedModel || modelConfig.model_name || modelConfig.provider}
                     </Badge>
                   </div>
                   <p className="text-[10px] text-muted-foreground">{meta.subtitle}</p>

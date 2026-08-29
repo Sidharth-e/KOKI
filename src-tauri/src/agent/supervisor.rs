@@ -1,6 +1,6 @@
 use crate::agent::graph_memory::GraphMemoryManager;
 use crate::agent::subagents::{SubAgentRole, SubAgentRunner};
-use crate::models::{SubAgentExecutionResult, SupervisorEventPayload};
+use crate::models::{ModelConfig, SubAgentExecutionResult, SupervisorEventPayload};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
@@ -80,6 +80,7 @@ impl SupervisorAgent {
         goal: &str,
         context: Option<&str>,
         model: &str,
+        config: Option<&ModelConfig>,
         enable_tools: bool,
     ) -> Result<SubAgentExecutionResult, String> {
         let _ = app.emit(
@@ -95,7 +96,7 @@ impl SupervisorAgent {
         );
 
         self.subagent_runner
-            .execute(app, session_id, role, goal, context, model, enable_tools)
+            .execute(app, session_id, role, goal, context, model, config, enable_tools)
             .await
     }
 }

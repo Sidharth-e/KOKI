@@ -1,12 +1,58 @@
+use crate::agent::provider::ModelFactory;
 use crate::agent::{tools, AgentEngine};
 use crate::models::{
-    AgentRequest, AgentResponse, LineageGraphPayload, Neo4jStatus, SubAgentExecutionResult,
-    SubAgentSpawnRequest,
+    AgentRequest, AgentResponse, LineageGraphPayload, ModelConfig, Neo4jStatus, OllamaModel,
+    SubAgentExecutionResult, SubAgentSpawnRequest,
 };
+use std::sync::Arc;
 use tauri::{command, AppHandle, State};
+use tokio::sync::RwLock;
 
 pub struct AgentState {
     pub engine: AgentEngine,
+    pub active_config: Arc<RwLock<ModelConfig>>,
+}
+
+#[command]
+pub async fn get_model_config(
+    state: State<'_, AgentState>,
+) -> Result<ModelConfig, String> {
+    let conf = state.active_config.read().await;
+    Ok(conf.clone())
+}
+
+#[command]
+pub async fn save_model_config(
+    state: State<'_, AgentState>,
+    config: ModelConfig,
+) -> Result<ModelConfig, String> {
+    let mut conf = state.active_config.write().await;
+    *conf = config.clone();
+    Ok(config)
+}
+
+#[command]
+pub async fn test_model_connection(
+    state: State<'_, AgentState>,
+    config: Option<ModelConfig>,
+) -> Result<bool, String> {
+    let conf = match config {
+        Some(c) => c,
+        None => state.active_config.read().await.clone(),
+    };
+    ModelFactory::check_health(&conf).await
+}
+
+#[command]
+pub async fn list_models_for_config(
+    state: State<'_, AgentState>,
+    config: Option<ModelConfig>,
+) -> Result<Vec<OllamaModel>, String> {
+    let conf = match config {
+        Some(c) => c,
+        None => state.active_config.read().await.clone(),
+    };
+    ModelFactory::list_models(&conf).await
 }
 
 #[command]
@@ -14,8 +60,12 @@ pub async fn ask_assistant(
     app: AppHandle,
     state: State<'_, AgentState>,
     session_id: String,
-    request: AgentRequest,
+    mut request: AgentRequest,
 ) -> Result<AgentResponse, String> {
+    if request.config.is_none() {
+        let active = state.active_config.read().await.clone();
+        request.config = Some(active);
+    }
     state.engine.run_agent_prompt(&app, &session_id, request).await
 }
 
@@ -51,7 +101,11 @@ pub async fn check_neo4j_status(
 pub async fn spawn_subagent(
     app: AppHandle,
     state: State<'_, AgentState>,
-    request: SubAgentSpawnRequest,
+    mut request: SubAgentSpawnRequest,
 ) -> Result<SubAgentExecutionResult, String> {
+    if request.config.is_none() {
+        let active = state.active_config.read().await.clone();
+        request.config = Some(active);
+    }
     state.engine.spawn_subagent(&app, request).await
 }

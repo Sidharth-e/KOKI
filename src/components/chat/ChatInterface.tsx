@@ -12,7 +12,7 @@ import { Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 export function ChatInterface() {
-  const { selectedModel, systemPrompt } = useAppStore();
+  const { selectedModel, systemPrompt, modelConfig } = useAppStore();
   const {
     messages,
     isStreaming,
@@ -116,10 +116,11 @@ export function ChatInterface() {
         sessionId: currentSessionId,
         request: {
           prompt: fullPrompt,
-          model: selectedModel,
+          model: selectedModel || modelConfig.model_name,
           system_prompt: systemPrompt,
-          temperature: 0.7,
+          temperature: modelConfig.temperature ?? 0.3,
           history: historyPayload,
+          config: modelConfig,
         },
       });
 
@@ -133,7 +134,7 @@ export function ChatInterface() {
       const errorMessage = err instanceof Error ? err.message : String(err);
       addMessage({
         role: "assistant",
-        content: `Error invoking local agent: ${errorMessage}. Make sure Ollama is running ('ollama serve') with model '${selectedModel}' installed.`,
+        content: `Error invoking agent (${modelConfig.provider}): ${errorMessage}. Verify your provider endpoint ('${modelConfig.endpoint}') and model settings in Configuration.`,
         model: "error",
       });
     } finally {

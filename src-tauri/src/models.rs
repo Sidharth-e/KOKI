@@ -57,6 +57,7 @@ pub struct AgentRequest {
     pub system_prompt: Option<String>,
     pub temperature: Option<f32>,
     pub history: Option<Vec<ChatMessage>>,
+    pub config: Option<ModelConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -92,6 +93,117 @@ pub struct ToolStatusPayload {
     pub output: Option<serde_json::Value>,
 }
 
+use std::collections::HashMap;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderType {
+    OllamaLocal,
+    OllamaCloud,
+    Openai,
+    Openrouter,
+    Anthropic,
+    Custom,
+}
+
+impl Default for ProviderType {
+    fn default() -> Self {
+        ProviderType::OllamaLocal
+    }
+}
+
+fn default_config_id() -> String {
+    "default".to_string()
+}
+
+fn default_config_name() -> String {
+    "Default Profile".to_string()
+}
+
+fn default_mode() -> String {
+    "local".to_string()
+}
+
+fn default_endpoint() -> String {
+    "http://127.0.0.1:11434".to_string()
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelConfig {
+    #[serde(default = "default_config_id")]
+    pub id: String,
+    #[serde(default = "default_config_name")]
+    pub name: String,
+    #[serde(default)]
+    pub provider: ProviderType,
+    #[serde(default = "default_mode")]
+    pub mode: String,
+    #[serde(default = "default_endpoint")]
+    pub endpoint: String,
+    pub api_key: Option<String>,
+    #[serde(default)]
+    pub model_name: String,
+    pub temperature: Option<f32>,
+    pub max_tokens: Option<u32>,
+    pub custom_headers: Option<HashMap<String, String>>,
+    #[serde(default = "default_true")]
+    pub is_active: bool,
+}
+
+impl Default for ModelConfig {
+    fn default() -> Self {
+        let mode = std::env::var("OLLAMA_MODE")
+            .unwrap_or_else(|_| "local".to_string())
+            .to_lowercase();
+
+        let is_cloud = mode == "cloud";
+
+        let api_key = std::env::var("OLLAMA_API_KEY")
+            .or_else(|_| std::env::var("OLLAMA_CLOUD_API_KEY"))
+            .or_else(|_| std::env::var("OPENAI_API_KEY"))
+            .ok()
+            .filter(|k| !k.trim().is_empty());
+
+        let endpoint = if is_cloud {
+            std::env::var("OLLAMA_CLOUD_URL")
+                .or_else(|_| std::env::var("OLLAMA_URL"))
+                .unwrap_or_else(|_| "https://api.ollama.com".to_string())
+        } else {
+            std::env::var("OLLAMA_LOCAL_URL")
+                .or_else(|_| std::env::var("OLLAMA_URL"))
+                .unwrap_or_else(|_| "http://127.0.0.1:11434".to_string())
+        };
+
+        let model_name = std::env::var("OLLAMA_MODEL")
+            .or_else(|_| std::env::var("NEXT_PUBLIC_OLLAMA_MODEL"))
+            .unwrap_or_default();
+
+        let provider = if is_cloud {
+            ProviderType::OllamaCloud
+        } else {
+            ProviderType::OllamaLocal
+        };
+
+        Self {
+            id: "default".to_string(),
+            name: "Default Profile".to_string(),
+            provider,
+            mode,
+            endpoint,
+            api_key,
+            model_name,
+            temperature: Some(0.3),
+            max_tokens: None,
+            custom_headers: None,
+            is_active: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OllamaConfig {
     pub mode: String,
@@ -102,34 +214,12 @@ pub struct OllamaConfig {
 
 impl Default for OllamaConfig {
     fn default() -> Self {
-        let mode = std::env::var("OLLAMA_MODE")
-            .unwrap_or_else(|_| "local".to_string())
-            .to_lowercase();
-
-        let api_key = std::env::var("OLLAMA_API_KEY")
-            .or_else(|_| std::env::var("OLLAMA_CLOUD_API_KEY"))
-            .ok()
-            .filter(|k| !k.trim().is_empty());
-
-        let url = if mode == "cloud" {
-            std::env::var("OLLAMA_CLOUD_URL")
-                .or_else(|_| std::env::var("OLLAMA_URL"))
-                .unwrap_or_else(|_| "https://api.ollama.com".to_string())
-        } else {
-            std::env::var("OLLAMA_LOCAL_URL")
-                .or_else(|_| std::env::var("OLLAMA_URL"))
-                .unwrap_or_else(|_| "http://127.0.0.1:11434".to_string())
-        };
-
-        let model = std::env::var("OLLAMA_MODEL")
-            .or_else(|_| std::env::var("NEXT_PUBLIC_OLLAMA_MODEL"))
-            .unwrap_or_default();
-
+        let conf = ModelConfig::default();
         Self {
-            mode,
-            url,
-            api_key,
-            model,
+            mode: conf.mode,
+            url: conf.endpoint,
+            api_key: conf.api_key,
+            model: conf.model_name,
         }
     }
 }
@@ -220,6 +310,7 @@ pub struct SubAgentSpawnRequest {
     pub goal: String,
     pub context: Option<String>,
     pub model: Option<String>,
+    pub config: Option<ModelConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

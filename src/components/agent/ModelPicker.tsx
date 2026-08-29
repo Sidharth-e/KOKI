@@ -8,16 +8,16 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Check, Cpu, HardDrive, RefreshCw } from "lucide-react";
+import { Check, Cloud, Cpu, HardDrive, RefreshCw } from "lucide-react";
 import { useEffect } from "react";
 
 export function ModelPicker() {
-  const { selectedModel, setSelectedModel, ollamaEndpoint } = useAppStore();
+  const { selectedModel, setSelectedModel, modelConfig } = useAppStore();
 
   const { data: models, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["ollama-models", ollamaEndpoint],
+    queryKey: ["models-for-config", modelConfig.provider, modelConfig.endpoint, modelConfig.api_key],
     queryFn: async () => {
-      return await invokeCommand<OllamaModel[]>("list_ollama_models", { endpoint: ollamaEndpoint });
+      return await invokeCommand<OllamaModel[]>("list_models_for_config", { config: modelConfig });
     },
   });
 
@@ -27,16 +27,18 @@ export function ModelPicker() {
     }
   }, [models, selectedModel, setSelectedModel]);
 
+  const isCloud = modelConfig.mode === "cloud";
+
   return (
     <Card className="w-full">
       <CardHeader className="flex flex-row items-center justify-between pb-3">
         <div>
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <Cpu className="h-4 w-4 text-primary" />
-            Local LLM Models
+            {isCloud ? <Cloud className="h-4 w-4 text-primary" /> : <Cpu className="h-4 w-4 text-primary" />}
+            {isCloud ? "Cloud & Remote Models" : "Local Daemon Models"}
           </CardTitle>
           <CardDescription className="text-xs">
-            Models detected from your local Ollama runtime
+            Detected from {modelConfig.endpoint}
           </CardDescription>
         </div>
         <Button variant="ghost" size="sm" onClick={() => refetch()} className="h-8 gap-1 text-xs">
@@ -47,15 +49,15 @@ export function ModelPicker() {
       <CardContent className="space-y-2">
         {isLoading ? (
           <div className="py-6 text-center text-xs text-muted-foreground">
-            Scanning local models...
+            Scanning provider models...
           </div>
         ) : isError ? (
           <div className="py-4 px-3 rounded-lg bg-error/10 border border-error/20 text-xs text-error">
-            Failed to fetch models: {String(error)}. Ensure Ollama is running (`ollama serve`).
+            Failed to fetch models: {String(error)}. Verify your endpoint and credentials in Settings.
           </div>
         ) : !models || models.length === 0 ? (
           <div className="py-6 text-center text-xs text-muted-foreground">
-            No models found. Run <code className="bg-secondary px-1 py-0.5 rounded text-foreground">ollama pull &lt;model-name&gt;</code> in your terminal.
+            No models returned. {isCloud ? "Check your API key in Settings." : "Run ollama pull <model-name>."}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -98,7 +100,7 @@ export function ModelPicker() {
 
                   <div className="flex items-center gap-2 text-[11px] text-muted-foreground pt-1 border-t border-border/50">
                     <HardDrive className="h-3 w-3" />
-                    <span>{formatBytes(model.size)}</span>
+                    <span>{model.size > 0 ? formatBytes(model.size) : "Cloud Managed"}</span>
                   </div>
                 </div>
               );

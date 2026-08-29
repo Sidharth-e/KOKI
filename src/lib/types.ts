@@ -9,6 +9,28 @@ export interface SystemMetrics {
   uptime_seconds: number;
 }
 
+export type ProviderType =
+  | "ollama_local"
+  | "ollama_cloud"
+  | "openai"
+  | "openrouter"
+  | "anthropic"
+  | "custom";
+
+export interface ModelConfig {
+  id: string;
+  name: string;
+  provider: ProviderType;
+  mode: "local" | "cloud";
+  endpoint: string;
+  api_key?: string;
+  model_name: string;
+  temperature?: number;
+  max_tokens?: number;
+  custom_headers?: Record<string, string>;
+  is_active: boolean;
+}
+
 export interface OllamaModel {
   name: string;
   size: number;
@@ -69,6 +91,7 @@ export interface AgentRequest {
   system_prompt?: string;
   temperature?: number;
   history?: { role: string; content: string }[];
+  config?: ModelConfig;
 }
 
 export interface AgentResponse {
@@ -123,6 +146,7 @@ export interface SubAgentSpawnRequest {
   goal: string;
   context?: string;
   model?: string;
+  config?: ModelConfig;
 }
 
 export interface SubAgentExecutionResult {
@@ -133,4 +157,3 @@ export interface SubAgentExecutionResult {
   duration_ms: number;
   success: boolean;
 }
-

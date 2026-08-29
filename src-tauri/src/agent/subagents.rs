@@ -1,13 +1,12 @@
 use crate::agent::graph_memory::GraphMemoryManager;
-use crate::agent::tools;
-use crate::models::{StreamChunkPayload, SubAgentExecutionResult, ToolCallInfo, ToolStatusPayload};
-use futures_util::StreamExt;
+use crate::agent::provider::ModelFactory;
+use crate::models::{ModelConfig, SubAgentExecutionResult};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
 use std::time::Instant;
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -52,9 +51,9 @@ impl SubAgentRole {
 }
 
 pub struct SubAgentRunner {
-    client: Client,
-    ollama_url: String,
-    graph_memory: Arc<GraphMemoryManager>,
+    pub client: Client,
+    pub ollama_url: String,
+    pub graph_memory: Arc<GraphMemoryManager>,
 }
 
 impl SubAgentRunner {
@@ -74,11 +73,11 @@ impl SubAgentRunner {
         goal: &str,
         context: Option<&str>,
         model: &str,
+        config: Option<&ModelConfig>,
         enable_tools: bool,
     ) -> Result<SubAgentExecutionResult, String> {
         let start_time = Instant::now();
         let agent_id = format!("agent_{}_{}", role.as_str(), Uuid::new_v4().simple());
-        let mut tool_calls_executed = Vec::new();
 
         let mut messages = Vec::new();
         messages.push(json!({
@@ -98,140 +97,32 @@ impl SubAgentRunner {
             }));
         }
 
-        let tools_json = if enable_tools {
-            tools::get_available_tools_definitions()
-                .iter()
-                .map(|t| {
-                    json!({
-                        "type": "function",
-                        "function": {
-                            "name": t.name,
-                            "description": t.description,
-                            "parameters": t.parameters
-                        }
-                    })
-                })
-                .collect::<Vec<_>>()
-        } else {
-            Vec::new()
+        let effective_config = match config {
+            Some(c) => {
+                let mut cfg = c.clone();
+                if !model.is_empty() {
+                    cfg.model_name = model.to_string();
+                }
+                cfg
+            }
+            None => {
+                let mut cfg = ModelConfig::default();
+                if !model.is_empty() {
+                    cfg.model_name = model.to_string();
+                }
+                cfg
+            }
         };
 
-        let endpoint = format!("{}/api/chat", self.ollama_url.trim_end_matches('/'));
-        let mut request_body = json!({
-            "model": model,
-            "messages": messages,
-            "stream": true,
-            "options": {
-                "temperature": 0.3
-            }
-        });
-
-        if enable_tools && !tools_json.is_empty() {
-            request_body["tools"] = json!(tools_json);
-        }
-
-        let response = self
-            .client
-            .post(&endpoint)
-            .json(&request_body)
-            .send()
-            .await
-            .map_err(|e| format!("Sub-agent Ollama request error: {}", e))?;
-
-        if !response.status().is_success() {
-            let err_text = response.text().await.unwrap_or_default();
-            return Err(format!("Sub-agent model error: {}", err_text));
-        }
-
-        let mut stream = response.bytes_stream();
-        let mut accumulated_text = String::new();
-        let mut line_buffer = String::new();
-
-        while let Some(chunk_result) = stream.next().await {
-            let chunk_bytes = chunk_result.map_err(|e| e.to_string())?;
-            let chunk_str = String::from_utf8_lossy(&chunk_bytes);
-            line_buffer.push_str(&chunk_str);
-
-            while let Some(newline_pos) = line_buffer.find('\n') {
-                let line = line_buffer[..newline_pos].trim().to_string();
-                line_buffer.drain(..=newline_pos);
-
-                if line.is_empty() {
-                    continue;
-                }
-
-                if let Ok(val) = serde_json::from_str::<serde_json::Value>(&line) {
-                    if let Some(msg) = val.get("message") {
-                        if let Some(content) = msg.get("content").and_then(|c| c.as_str()) {
-                            if !content.is_empty() {
-                                accumulated_text.push_str(content);
-                                let _ = app.emit(
-                                    "assistant-stream-chunk",
-                                    StreamChunkPayload {
-                                        session_id: session_id.to_string(),
-                                        chunk: content.to_string(),
-                                        is_done: false,
-                                        error: None,
-                                    },
-                                );
-                            }
-                        }
-
-                        if enable_tools {
-                            if let Some(tcs) = msg.get("tool_calls").and_then(|tc| tc.as_array()) {
-                                for tc in tcs {
-                                    if let Some(func) = tc.get("function") {
-                                        let tool_name =
-                                            func.get("name").and_then(|n| n.as_str()).unwrap_or("");
-                                        let tool_args =
-                                            func.get("arguments").cloned().unwrap_or(json!({}));
-
-                                        let _ = app.emit(
-                                            "assistant-tool-status",
-                                            ToolStatusPayload {
-                                                session_id: session_id.to_string(),
-                                                tool_name: tool_name.to_string(),
-                                                status: "running".to_string(),
-                                                input: tool_args.clone(),
-                                                output: None,
-                                            },
-                                        );
-
-                                        let t_start = Instant::now();
-                                        let tool_res =
-                                            tools::execute_tool(tool_name, &tool_args).await;
-                                        let t_dur = t_start.elapsed().as_millis() as u64;
-
-                                        let result_json = match tool_res {
-                                            Ok(out) => out,
-                                            Err(e) => json!({ "error": e }),
-                                        };
-
-                                        let _ = app.emit(
-                                            "assistant-tool-status",
-                                            ToolStatusPayload {
-                                                session_id: session_id.to_string(),
-                                                tool_name: tool_name.to_string(),
-                                                status: "completed".to_string(),
-                                                input: tool_args.clone(),
-                                                output: Some(result_json.clone()),
-                                            },
-                                        );
-
-                                        tool_calls_executed.push(ToolCallInfo {
-                                            tool_name: tool_name.to_string(),
-                                            arguments: tool_args,
-                                            result: result_json,
-                                            duration_ms: t_dur,
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        let (accumulated_text, tool_calls_executed) = ModelFactory::execute_stream_chat(
+            app,
+            session_id,
+            &effective_config,
+            messages,
+            enable_tools,
+            0.3,
+        )
+        .await?;
 
         let dur = start_time.elapsed().as_millis() as u64;
         let success = !accumulated_text.is_empty();

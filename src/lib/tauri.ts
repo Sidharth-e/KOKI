@@ -1,4 +1,5 @@
 import type { EventCallback, UnlistenFn } from "@tauri-apps/api/event";
+import { ModelConfig, OllamaModel } from "./types";
 
 export const isTauriEnvironment = (): boolean => {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -8,6 +9,48 @@ export async function invokeCommand<T>(cmd: string, args?: Record<string, unknow
   if (isTauriEnvironment()) {
     const { invoke } = await import("@tauri-apps/api/core");
     return invoke<T>(cmd, args);
+  }
+
+  if (cmd === "get_model_config") {
+    const isCloud = process.env.OLLAMA_MODE === "cloud";
+    const endpoint = isCloud
+      ? process.env.OLLAMA_CLOUD_URL || "https://api.ollama.com"
+      : process.env.OLLAMA_URL || "http://127.0.0.1:11434";
+    const model = process.env.OLLAMA_MODEL || process.env.NEXT_PUBLIC_OLLAMA_MODEL || "gemma4:31b";
+    return {
+      id: "default",
+      name: "Default Profile",
+      provider: isCloud ? "ollama_cloud" : "ollama_local",
+      mode: isCloud ? "cloud" : "local",
+      endpoint,
+      api_key: process.env.OLLAMA_API_KEY || "",
+      model_name: model,
+      temperature: 0.3,
+      is_active: true,
+    } as T;
+  }
+
+  if (cmd === "save_model_config") {
+    return args?.config as T;
+  }
+
+  if (cmd === "test_model_connection") {
+    return true as T;
+  }
+
+  if (cmd === "list_models_for_config") {
+    const cfg = (args?.config as ModelConfig) || {};
+    const modelName = cfg.model_name || process.env.OLLAMA_MODEL || "gemma4:31b";
+    return [
+      {
+        name: modelName,
+        size: 5242880000,
+        digest: "sha256:mockdigest",
+        modified_at: new Date().toISOString(),
+        parameter_size: "31B",
+        quantization_level: "Q4_K_M",
+      },
+    ] as T;
   }
 
   if (cmd === "get_system_metrics") {

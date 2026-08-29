@@ -27,16 +27,16 @@ export function CommandPalette() {
     setActivePanel,
     setSelectedModel,
     selectedModel,
-    ollamaEndpoint,
+    modelConfig,
   } = useAppStore();
   const { resetSession } = useChatStore();
   const [query, setQuery] = useState("");
 
   const { data: models } = useQuery({
-    queryKey: ["ollama-models", ollamaEndpoint],
+    queryKey: ["models-for-config", modelConfig.provider, modelConfig.endpoint, modelConfig.api_key],
     queryFn: async () => {
-      return await invokeCommand<OllamaModel[]>("list_ollama_models", {
-        endpoint: ollamaEndpoint,
+      return await invokeCommand<OllamaModel[]>("list_models_for_config", {
+        config: modelConfig,
       });
     },
   });

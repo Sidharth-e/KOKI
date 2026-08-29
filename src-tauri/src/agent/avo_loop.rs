@@ -1,12 +1,10 @@
 use crate::agent::graph_memory::GraphMemoryManager;
+use crate::agent::provider::ModelFactory;
 use crate::agent::subagents::SubAgentRunner;
 use crate::agent::supervisor::SupervisorAgent;
-use crate::agent::tools;
 use crate::models::{
-    AgentRequest, AgentResponse, StreamChunkPayload, SupervisorEventPayload, ToolCallInfo,
-    ToolStatusPayload,
+    AgentRequest, AgentResponse, ModelConfig, StreamChunkPayload, SupervisorEventPayload,
 };
-use futures_util::StreamExt;
 use reqwest::Client;
 use serde_json::json;
 use std::sync::Arc;
@@ -15,10 +13,10 @@ use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
 pub struct AvoEngine {
-    client: Client,
-    ollama_url: String,
-    graph_memory: Arc<GraphMemoryManager>,
-    supervisor: Arc<SupervisorAgent>,
+    pub client: Client,
+    pub ollama_url: String,
+    pub graph_memory: Arc<GraphMemoryManager>,
+    pub supervisor: Arc<SupervisorAgent>,
     pub subagent_runner: Arc<SubAgentRunner>,
 }
 
@@ -79,6 +77,14 @@ impl AvoEngine {
         let mut accumulated_final_response = String::new();
         let mut supervisor_hint: Option<String> = None;
 
+        let effective_config = req.config.clone().unwrap_or_else(|| {
+            let mut c = ModelConfig::default();
+            if !req.model.is_empty() {
+                c.model_name = req.model.clone();
+            }
+            c
+        });
+
         for iteration in 1..=max_iterations {
             let _ = app.emit(
                 "assistant-supervisor-event",
@@ -115,6 +121,12 @@ impl AvoEngine {
                 iteration, max_iterations
             );
 
+            if let Some(ref custom_sys) = req.system_prompt {
+                if !custom_sys.trim().is_empty() {
+                    system_prompt = format!("{}\n\n{}", custom_sys, system_prompt);
+                }
+            }
+
             if let Some(ref hint) = supervisor_hint {
                 system_prompt.push_str(&format!("\n[SUPERVISOR INTERVENTION]\n{}\n", hint));
             }
@@ -146,141 +158,18 @@ impl AvoEngine {
                 "content": req.prompt.clone()
             }));
 
-            let tool_definitions = tools::get_available_tools_definitions();
-            let tools_json = tool_definitions
-                .iter()
-                .map(|t| {
-                    json!({
-                        "type": "function",
-                        "function": {
-                            "name": t.name,
-                            "description": t.description,
-                            "parameters": t.parameters
-                        }
-                    })
-                })
-                .collect::<Vec<_>>();
+            let (candidate_text, iteration_tool_calls) = ModelFactory::execute_stream_chat(
+                app,
+                session_id,
+                &effective_config,
+                messages,
+                true,
+                req.temperature.unwrap_or(0.3),
+            )
+            .await?;
 
-            let endpoint = format!("{}/api/chat", self.ollama_url.trim_end_matches('/'));
-            let request_body = json!({
-                "model": req.model,
-                "messages": messages,
-                "stream": true,
-                "tools": tools_json,
-                "options": {
-                    "temperature": req.temperature.unwrap_or(0.3)
-                }
-            });
-
-            let response = self
-                .client
-                .post(&endpoint)
-                .json(&request_body)
-                .send()
-                .await
-                .map_err(|e| format!("Failed to connect to Ollama at {}: {}", endpoint, e))?;
-
-            let status = response.status();
-            if !status.is_success() {
-                let err_text = response.text().await.unwrap_or_default();
-                return Err(format!("Ollama error (HTTP {}): {}", status, err_text));
-            }
-
-            let mut stream = response.bytes_stream();
-            let mut candidate_text = String::new();
-            let mut line_buffer = String::new();
-            let mut iteration_tool_calls = Vec::new();
-
-            while let Some(chunk_result) = stream.next().await {
-                let chunk_bytes = chunk_result.map_err(|e| e.to_string())?;
-                let chunk_str = String::from_utf8_lossy(&chunk_bytes);
-                line_buffer.push_str(&chunk_str);
-
-                while let Some(newline_pos) = line_buffer.find('\n') {
-                    let line = line_buffer[..newline_pos].trim().to_string();
-                    line_buffer.drain(..=newline_pos);
-
-                    if line.is_empty() {
-                        continue;
-                    }
-
-                    if let Ok(val) = serde_json::from_str::<serde_json::Value>(&line) {
-                        if let Some(msg) = val.get("message") {
-                            if let Some(content) = msg.get("content").and_then(|c| c.as_str()) {
-                                if !content.is_empty() {
-                                    candidate_text.push_str(content);
-                                    let _ = app.emit(
-                                        "assistant-stream-chunk",
-                                        StreamChunkPayload {
-                                            session_id: session_id.to_string(),
-                                            chunk: content.to_string(),
-                                            is_done: false,
-                                            error: None,
-                                        },
-                                    );
-                                }
-                            }
-
-                            if let Some(tool_calls) =
-                                msg.get("tool_calls").and_then(|tc| tc.as_array())
-                            {
-                                for tc in tool_calls {
-                                    if let Some(func) = tc.get("function") {
-                                        let tool_name = func
-                                            .get("name")
-                                            .and_then(|n| n.as_str())
-                                            .unwrap_or("");
-                                        let tool_args = func
-                                            .get("arguments")
-                                            .cloned()
-                                            .unwrap_or(json!({}));
-
-                                        let _ = app.emit(
-                                            "assistant-tool-status",
-                                            ToolStatusPayload {
-                                                session_id: session_id.to_string(),
-                                                tool_name: tool_name.to_string(),
-                                                status: "running".to_string(),
-                                                input: tool_args.clone(),
-                                                output: None,
-                                            },
-                                        );
-
-                                        let t_start = Instant::now();
-                                        let tool_res =
-                                            tools::execute_tool(tool_name, &tool_args).await;
-                                        let t_dur = t_start.elapsed().as_millis() as u64;
-
-                                        let result_json = match tool_res {
-                                            Ok(out) => out,
-                                            Err(e) => json!({ "error": e }),
-                                        };
-
-                                        let _ = app.emit(
-                                            "assistant-tool-status",
-                                            ToolStatusPayload {
-                                                session_id: session_id.to_string(),
-                                                tool_name: tool_name.to_string(),
-                                                status: "completed".to_string(),
-                                                input: tool_args.clone(),
-                                                output: Some(result_json.clone()),
-                                            },
-                                        );
-
-                                        let tc_info = ToolCallInfo {
-                                            tool_name: tool_name.to_string(),
-                                            arguments: tool_args,
-                                            result: result_json,
-                                            duration_ms: t_dur,
-                                        };
-                                        iteration_tool_calls.push(tc_info.clone());
-                                        all_tool_calls.push(tc_info);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+            for tc in &iteration_tool_calls {
+                all_tool_calls.push(tc.clone());
             }
 
             let _ = self
@@ -360,9 +249,15 @@ impl AvoEngine {
             },
         );
 
+        let final_model = if !effective_config.model_name.is_empty() {
+            effective_config.model_name
+        } else {
+            req.model
+        };
+
         Ok(AgentResponse {
             response: accumulated_final_response,
-            model: req.model,
+            model: final_model,
             tool_calls: all_tool_calls,
             total_duration_ms: start_time.elapsed().as_millis() as u64,
         })
