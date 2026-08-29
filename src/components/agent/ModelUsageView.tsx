@@ -19,6 +19,7 @@ import {
   Sparkles,
   Zap,
 } from "lucide-react";
+import { useEffect } from "react";
 
 export function ModelUsageView() {
   const { selectedModel, setSelectedModel, ollamaEndpoint } = useAppStore();
@@ -37,6 +38,12 @@ export function ModelUsageView() {
       });
     },
   });
+
+  useEffect(() => {
+    if (!selectedModel && localModels && localModels.length > 0) {
+      setSelectedModel(localModels[0].name);
+    }
+  }, [localModels, selectedModel, setSelectedModel]);
 
   const activeModelDetails = localModels?.find((m) => m.name === selectedModel);
 
@@ -121,7 +128,7 @@ export function ModelUsageView() {
           <div className="py-12 text-center text-xs text-muted-foreground space-y-2">
             <p>No models detected on host.</p>
             <code className="px-2 py-1 rounded bg-secondary text-foreground text-[11px] font-mono">
-              ollama run llama3.2
+              ollama pull &lt;model-name&gt;
             </code>
           </div>
         ) : (

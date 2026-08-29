@@ -2,6 +2,9 @@
 
 import { useAppStore } from "@/store/useAppStore";
 import { useChatStore } from "@/store/useChatStore";
+import { invokeCommand } from "@/lib/tauri";
+import { OllamaModel } from "@/lib/types";
+import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/Badge";
 import { modalMotion, overlayMotion, staggerContainer, staggerItem, microSpring } from "@/lib/animations";
 import { AnimatePresence, motion } from "motion/react";
@@ -24,9 +27,19 @@ export function CommandPalette() {
     setActivePanel,
     setSelectedModel,
     selectedModel,
+    ollamaEndpoint,
   } = useAppStore();
   const { resetSession } = useChatStore();
   const [query, setQuery] = useState("");
+
+  const { data: models } = useQuery({
+    queryKey: ["ollama-models", ollamaEndpoint],
+    queryFn: async () => {
+      return await invokeCommand<OllamaModel[]>("list_ollama_models", {
+        endpoint: ollamaEndpoint,
+      });
+    },
+  });
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -79,20 +92,15 @@ export function CommandPalette() {
       icon: Settings,
       perform: () => setActivePanel("settings"),
     },
-    {
-      id: "model-gemma",
-      title: "Switch to Gemma 4 (2B MLX)",
-      category: "Models",
-      icon: Cpu,
-      perform: () => setSelectedModel("gemma4:e2b-mlx"),
-    },
-    {
-      id: "model-llama",
-      title: "Switch to Llama 3.2",
-      category: "Models",
-      icon: Cpu,
-      perform: () => setSelectedModel("llama3.2:latest"),
-    },
+    ...(models && models.length > 0
+      ? models.map((m) => ({
+          id: `model-${m.name}`,
+          title: `Switch to ${m.name}`,
+          category: "Models",
+          icon: Cpu,
+          perform: () => setSelectedModel(m.name),
+        }))
+      : []),
     {
       id: "new-session",
       title: "Start New Session",

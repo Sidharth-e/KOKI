@@ -5,7 +5,7 @@ pub mod supervisor;
 pub mod tools;
 
 use crate::models::{
-    AgentRequest, AgentResponse, LineageGraphPayload, Neo4jConfig, Neo4jStatus,
+    AgentRequest, AgentResponse, LineageGraphPayload, Neo4jConfig, Neo4jStatus, OllamaConfig,
     SubAgentExecutionResult, SubAgentSpawnRequest,
 };
 use avo_loop::AvoEngine;
@@ -27,11 +27,19 @@ pub struct AgentEngine {
 
 impl Default for AgentEngine {
     fn default() -> Self {
-        let client = Client::builder()
-            .timeout(std::time::Duration::from_secs(120))
-            .build()
-            .unwrap_or_default();
-        let ollama_url = "http://127.0.0.1:11434".to_string();
+        let ollama_config = OllamaConfig::default();
+        let mut builder = Client::builder().timeout(std::time::Duration::from_secs(120));
+
+        if let Some(ref key) = ollama_config.api_key {
+            let mut headers = reqwest::header::HeaderMap::new();
+            if let Ok(val) = reqwest::header::HeaderValue::from_str(&format!("Bearer {}", key)) {
+                headers.insert(reqwest::header::AUTHORIZATION, val);
+                builder = builder.default_headers(headers);
+            }
+        }
+
+        let client = builder.build().unwrap_or_default();
+        let ollama_url = ollama_config.url;
         let graph_memory = Arc::new(GraphMemoryManager::new(None));
         let subagent_runner = Arc::new(SubAgentRunner::new(
             client.clone(),
@@ -61,11 +69,19 @@ impl Default for AgentEngine {
 
 impl AgentEngine {
     pub fn new(ollama_url: Option<String>, neo4j_config: Option<Neo4jConfig>) -> Self {
-        let client = Client::builder()
-            .timeout(std::time::Duration::from_secs(120))
-            .build()
-            .unwrap_or_default();
-        let ollama_url = ollama_url.unwrap_or_else(|| "http://127.0.0.1:11434".to_string());
+        let ollama_config = OllamaConfig::default();
+        let mut builder = Client::builder().timeout(std::time::Duration::from_secs(120));
+
+        if let Some(ref key) = ollama_config.api_key {
+            let mut headers = reqwest::header::HeaderMap::new();
+            if let Ok(val) = reqwest::header::HeaderValue::from_str(&format!("Bearer {}", key)) {
+                headers.insert(reqwest::header::AUTHORIZATION, val);
+                builder = builder.default_headers(headers);
+            }
+        }
+
+        let client = builder.build().unwrap_or_default();
+        let ollama_url = ollama_url.unwrap_or(ollama_config.url);
         let graph_memory = Arc::new(GraphMemoryManager::new(neo4j_config));
         let subagent_runner = Arc::new(SubAgentRunner::new(
             client.clone(),
@@ -115,7 +131,7 @@ impl AgentEngine {
             other => SubAgentRole::Custom(other.to_string()),
         };
 
-        let model = req.model.unwrap_or_else(|| "qwen2.5-coder:7b".to_string());
+        let model = req.model.unwrap_or_else(|| OllamaConfig::default().model);
         self.supervisor
             .spawn_agent(
                 app,

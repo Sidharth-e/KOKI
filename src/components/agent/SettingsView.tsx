@@ -42,6 +42,12 @@ export function SettingsView() {
     },
   });
 
+  useEffect(() => {
+    if (!selectedModel && models && models.length > 0) {
+      setSelectedModel(models[0].name);
+    }
+  }, [models, selectedModel, setSelectedModel]);
+
   const handleSave = () => {
     setOllamaEndpoint(endpointInput);
     setSystemPrompt(promptInput);

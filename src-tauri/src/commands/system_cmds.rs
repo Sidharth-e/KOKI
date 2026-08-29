@@ -1,4 +1,4 @@
-use crate::models::{OllamaModel, OllamaTagsResponse, SystemMetrics};
+use crate::models::{OllamaConfig, OllamaModel, OllamaTagsResponse, SystemMetrics};
 use reqwest::Client;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Duration;
@@ -44,11 +44,17 @@ pub async fn get_system_metrics() -> Result<SystemMetrics, String> {
 
 #[command]
 pub async fn check_ollama_status(endpoint: Option<String>) -> Result<bool, String> {
-    let base_url = endpoint.unwrap_or_else(|| "http://127.0.0.1:11434".to_string());
-    let client = Client::builder()
-        .timeout(Duration::from_secs(3))
-        .build()
-        .map_err(|e| e.to_string())?;
+    let config = OllamaConfig::default();
+    let base_url = endpoint.unwrap_or(config.url);
+    let mut builder = Client::builder().timeout(Duration::from_secs(3));
+    if let Some(ref key) = config.api_key {
+        let mut headers = reqwest::header::HeaderMap::new();
+        if let Ok(val) = reqwest::header::HeaderValue::from_str(&format!("Bearer {}", key)) {
+            headers.insert(reqwest::header::AUTHORIZATION, val);
+            builder = builder.default_headers(headers);
+        }
+    }
+    let client = builder.build().map_err(|e| e.to_string())?;
 
     match client.get(format!("{}/api/tags", base_url.trim_end_matches('/'))).send().await {
         Ok(res) => Ok(res.status().is_success()),
@@ -58,11 +64,17 @@ pub async fn check_ollama_status(endpoint: Option<String>) -> Result<bool, Strin
 
 #[command]
 pub async fn list_ollama_models(endpoint: Option<String>) -> Result<Vec<OllamaModel>, String> {
-    let base_url = endpoint.unwrap_or_else(|| "http://127.0.0.1:11434".to_string());
-    let client = Client::builder()
-        .timeout(Duration::from_secs(5))
-        .build()
-        .map_err(|e| e.to_string())?;
+    let config = OllamaConfig::default();
+    let base_url = endpoint.unwrap_or(config.url);
+    let mut builder = Client::builder().timeout(Duration::from_secs(5));
+    if let Some(ref key) = config.api_key {
+        let mut headers = reqwest::header::HeaderMap::new();
+        if let Ok(val) = reqwest::header::HeaderValue::from_str(&format!("Bearer {}", key)) {
+            headers.insert(reqwest::header::AUTHORIZATION, val);
+            builder = builder.default_headers(headers);
+        }
+    }
+    let client = builder.build().map_err(|e| e.to_string())?;
 
     let res = client
         .get(format!("{}/api/tags", base_url.trim_end_matches('/')))

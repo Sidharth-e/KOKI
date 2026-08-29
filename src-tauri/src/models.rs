@@ -93,6 +93,48 @@ pub struct ToolStatusPayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OllamaConfig {
+    pub mode: String,
+    pub url: String,
+    pub api_key: Option<String>,
+    pub model: String,
+}
+
+impl Default for OllamaConfig {
+    fn default() -> Self {
+        let mode = std::env::var("OLLAMA_MODE")
+            .unwrap_or_else(|_| "local".to_string())
+            .to_lowercase();
+
+        let api_key = std::env::var("OLLAMA_API_KEY")
+            .or_else(|_| std::env::var("OLLAMA_CLOUD_API_KEY"))
+            .ok()
+            .filter(|k| !k.trim().is_empty());
+
+        let url = if mode == "cloud" {
+            std::env::var("OLLAMA_CLOUD_URL")
+                .or_else(|_| std::env::var("OLLAMA_URL"))
+                .unwrap_or_else(|_| "https://api.ollama.com".to_string())
+        } else {
+            std::env::var("OLLAMA_LOCAL_URL")
+                .or_else(|_| std::env::var("OLLAMA_URL"))
+                .unwrap_or_else(|_| "http://127.0.0.1:11434".to_string())
+        };
+
+        let model = std::env::var("OLLAMA_MODEL")
+            .or_else(|_| std::env::var("NEXT_PUBLIC_OLLAMA_MODEL"))
+            .unwrap_or_default();
+
+        Self {
+            mode,
+            url,
+            api_key,
+            model,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Neo4jConfig {
     pub uri: String,
     pub user: String,

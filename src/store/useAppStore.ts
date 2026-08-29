@@ -24,12 +24,15 @@ interface AppState {
   setCommandPaletteOpen: (open: boolean) => void;
 }
 
+const initialModel = process.env.OLLAMA_MODEL || process.env.NEXT_PUBLIC_OLLAMA_MODEL || "";
+const initialEndpoint = process.env.OLLAMA_URL || process.env.NEXT_PUBLIC_OLLAMA_URL || "http://127.0.0.1:11434";
+
 export const useAppStore = create<AppState>((set) => ({
   theme: "dark",
   activePanel: "chat",
-  selectedModel: "gemma4:e2b-mlx",
-  ollamaEndpoint: "http://127.0.0.1:11434",
-  systemPrompt: "You are KOKI, a fast, proactive, and intelligent local AI personal assistant powered by gemma4:e2b-mlx, Rig, and Tauri.",
+  selectedModel: initialModel,
+  ollamaEndpoint: initialEndpoint,
+  systemPrompt: "You are KOKI, a fast, proactive, and intelligent AI personal assistant powered by Rig and Tauri.",
   audioMuted: false,
   agentModeEnabled: true,
   commandPaletteOpen: false,

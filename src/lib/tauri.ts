@@ -32,24 +32,19 @@ export async function invokeCommand<T>(cmd: string, args?: Record<string, unknow
   }
 
   if (cmd === "list_ollama_models") {
-    return [
-      {
-        name: "gemma4:e2b-mlx",
-        size: 1600000000,
-        digest: "sha256:gemma4mlx",
-        modified_at: new Date().toISOString(),
-        parameter_size: "2B",
-        quantization_level: "MLX Metal",
-      },
-      {
-        name: "llama3.2:latest",
-        size: 2000000000,
-        digest: "sha256:llama3",
-        modified_at: new Date().toISOString(),
-        parameter_size: "3B",
-        quantization_level: "Q4_K_M",
-      },
-    ] as T;
+    const envModel = process.env.OLLAMA_MODEL || process.env.NEXT_PUBLIC_OLLAMA_MODEL;
+    return (envModel
+      ? [
+          {
+            name: envModel,
+            size: 0,
+            digest: "",
+            modified_at: new Date().toISOString(),
+            parameter_size: undefined,
+            quantization_level: undefined,
+          },
+        ]
+      : []) as T;
   }
 
   if (cmd === "get_available_tools") {

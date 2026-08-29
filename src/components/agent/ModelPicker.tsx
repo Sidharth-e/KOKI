@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Check, Cpu, HardDrive, RefreshCw } from "lucide-react";
+import { useEffect } from "react";
 
 export function ModelPicker() {
   const { selectedModel, setSelectedModel, ollamaEndpoint } = useAppStore();
@@ -19,6 +20,12 @@ export function ModelPicker() {
       return await invokeCommand<OllamaModel[]>("list_ollama_models", { endpoint: ollamaEndpoint });
     },
   });
+
+  useEffect(() => {
+    if (!selectedModel && models && models.length > 0) {
+      setSelectedModel(models[0].name);
+    }
+  }, [models, selectedModel, setSelectedModel]);
 
   return (
     <Card className="w-full">
@@ -48,7 +55,7 @@ export function ModelPicker() {
           </div>
         ) : !models || models.length === 0 ? (
           <div className="py-6 text-center text-xs text-muted-foreground">
-            No models found. Run <code className="bg-secondary px-1 py-0.5 rounded text-foreground">ollama pull llama3.2</code> in your terminal.
+            No models found. Run <code className="bg-secondary px-1 py-0.5 rounded text-foreground">ollama pull &lt;model-name&gt;</code> in your terminal.
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
