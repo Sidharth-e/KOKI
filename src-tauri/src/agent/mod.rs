@@ -146,4 +146,13 @@ impl AgentEngine {
     pub async fn check_neo4j_status(&self) -> Neo4jStatus {
         self.graph_memory.check_status().await
     }
+
+    pub async fn get_neo4j_config(&self) -> Neo4jConfig {
+        self.graph_memory.get_config().await
+    }
+
+    pub async fn update_neo4j_config(&self, config: Neo4jConfig) -> Neo4jStatus {
+        self.graph_memory.update_config(config).await;
+        self.graph_memory.check_status().await
+    }
 }

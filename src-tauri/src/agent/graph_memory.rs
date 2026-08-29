@@ -6,16 +6,27 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 pub struct GraphMemoryManager {
-    config: Neo4jConfig,
+    config: Arc<RwLock<Neo4jConfig>>,
     graph: Arc<RwLock<Option<Arc<Graph>>>>,
 }
 
 impl GraphMemoryManager {
     pub fn new(config: Option<Neo4jConfig>) -> Self {
         Self {
-            config: config.unwrap_or_default(),
+            config: Arc::new(RwLock::new(config.unwrap_or_default())),
             graph: Arc::new(RwLock::new(None)),
         }
+    }
+
+    pub async fn update_config(&self, new_config: Neo4jConfig) {
+        let mut graph_lock = self.graph.write().await;
+        *graph_lock = None;
+        let mut config_lock = self.config.write().await;
+        *config_lock = new_config;
+    }
+
+    pub async fn get_config(&self) -> Neo4jConfig {
+        self.config.read().await.clone()
     }
 
     pub async fn get_connection(&self) -> Result<Arc<Graph>, String> {
@@ -30,23 +41,27 @@ impl GraphMemoryManager {
             return Ok(Arc::clone(g));
         }
 
-        let current_config = Neo4jConfig::default();
-        let uri = if !self.config.uri.is_empty() && self.config.uri != "127.0.0.1:7687" {
-            &self.config.uri
+        let cfg = self.config.read().await.clone();
+        if !cfg.enabled {
+            return Err("Neo4j Graph Memory is disabled in settings".to_string());
+        }
+
+        let uri = if !cfg.uri.is_empty() {
+            &cfg.uri
         } else {
-            &current_config.uri
+            "127.0.0.1:7687"
         };
 
-        let user = if !self.config.user.is_empty() && self.config.user != "neo4j" {
-            &self.config.user
+        let user = if !cfg.user.is_empty() {
+            &cfg.user
         } else {
-            &current_config.user
+            "neo4j"
         };
 
-        let pass = if !self.config.pass.is_empty() && self.config.pass != "password" && self.config.pass != "AvoHarness2026!SecureGraph" {
-            &self.config.pass
+        let pass = if !cfg.pass.is_empty() {
+            &cfg.pass
         } else {
-            &current_config.pass
+            "AvoHarness2026!SecureGraph"
         };
 
         let g = Graph::new(uri, user, pass)
@@ -59,6 +74,7 @@ impl GraphMemoryManager {
     }
 
     pub async fn check_status(&self) -> Neo4jStatus {
+        let uri = self.config.read().await.uri.clone();
         match self.get_connection().await {
             Ok(graph) => {
                 let q = query("MATCH (n) RETURN count(n) as total");
@@ -72,14 +88,14 @@ impl GraphMemoryManager {
                         }
                         Neo4jStatus {
                             connected: true,
-                            uri: self.config.uri.clone(),
+                            uri,
                             node_count: count,
                             error: None,
                         }
                     }
                     Err(e) => Neo4jStatus {
                         connected: false,
-                        uri: self.config.uri.clone(),
+                        uri,
                         node_count: 0,
                         error: Some(e.to_string()),
                     },
@@ -87,9 +103,54 @@ impl GraphMemoryManager {
             }
             Err(e) => Neo4jStatus {
                 connected: false,
-                uri: self.config.uri.clone(),
+                uri,
                 node_count: 0,
                 error: Some(e),
+            },
+        }
+    }
+
+    pub async fn test_config(test_config: &Neo4jConfig) -> Neo4jStatus {
+        if !test_config.enabled {
+            return Neo4jStatus {
+                connected: false,
+                uri: test_config.uri.clone(),
+                node_count: 0,
+                error: Some("Disabled in configuration".to_string()),
+            };
+        }
+
+        match Graph::new(&test_config.uri, &test_config.user, &test_config.pass).await {
+            Ok(graph) => {
+                let q = query("MATCH (n) RETURN count(n) as total");
+                match graph.execute(q).await {
+                    Ok(mut result) => {
+                        let mut count = 0u64;
+                        if let Ok(Some(row)) = result.next().await {
+                            if let Ok(c) = row.get::<i64>("total") {
+                                count = c as u64;
+                            }
+                        }
+                        Neo4jStatus {
+                            connected: true,
+                            uri: test_config.uri.clone(),
+                            node_count: count,
+                            error: None,
+                        }
+                    }
+                    Err(e) => Neo4jStatus {
+                        connected: false,
+                        uri: test_config.uri.clone(),
+                        node_count: 0,
+                        error: Some(e.to_string()),
+                    },
+                }
+            }
+            Err(e) => Neo4jStatus {
+                connected: false,
+                uri: test_config.uri.clone(),
+                node_count: 0,
+                error: Some(e.to_string()),
             },
         }
     }

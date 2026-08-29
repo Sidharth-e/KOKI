@@ -2,13 +2,12 @@
 
 import { useAppStore } from "@/store/useAppStore";
 import { invokeCommand } from "@/lib/tauri";
-import { ModelConfig, Neo4jStatus, OllamaModel, ProviderType } from "@/lib/types";
+import { ModelConfig, Neo4jConfig, Neo4jStatus, OllamaModel, ProviderType } from "@/lib/types";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Card, CardDescription, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import {
   Check,
   Cloud,
@@ -19,11 +18,10 @@ import {
   Globe,
   Key,
   Layers,
-  Moon,
   RefreshCw,
-  Server,
   Sliders,
   Sparkles,
+  User,
   Zap,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -97,21 +95,30 @@ export function SettingsView() {
   const {
     modelConfig,
     setModelConfig,
+    neo4jConfig,
+    setNeo4jConfig,
     systemPrompt,
     setSystemPrompt,
-    theme,
   } = useAppStore();
 
   const [formConfig, setFormConfig] = useState<ModelConfig>(modelConfig);
+  const [formNeo4j, setFormNeo4j] = useState<Neo4jConfig>(neo4jConfig);
   const [promptInput, setPromptInput] = useState(systemPrompt);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [showNeo4jPass, setShowNeo4jPass] = useState(false);
   const [saved, setSaved] = useState(false);
   const [testStatus, setTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
   const [testError, setTestError] = useState<string | null>(null);
+  const [neo4jTestStatus, setNeo4jTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
+  const [neo4jTestResult, setNeo4jTestResult] = useState<Neo4jStatus | null>(null);
 
   useEffect(() => {
     setFormConfig(modelConfig);
   }, [modelConfig]);
+
+  useEffect(() => {
+    setFormNeo4j(neo4jConfig);
+  }, [neo4jConfig]);
 
   const { data: discoveredModels, refetch: refetchModels, isFetching: isScanningModels } = useQuery({
     queryKey: ["discovered-models", formConfig.provider, formConfig.endpoint, formConfig.api_key],
@@ -173,8 +180,28 @@ export function SettingsView() {
     }
   };
 
+  const handleTestNeo4j = async () => {
+    setNeo4jTestStatus("testing");
+    try {
+      const res = await invokeCommand<Neo4jStatus>("test_neo4j_connection", {
+        config: formNeo4j,
+      });
+      setNeo4jTestResult(res);
+      setNeo4jTestStatus(res.connected ? "success" : "error");
+    } catch (err: unknown) {
+      setNeo4jTestStatus("error");
+      setNeo4jTestResult({
+        connected: false,
+        uri: formNeo4j.uri,
+        node_count: 0,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
   const handleSave = () => {
     setModelConfig(formConfig);
+    setNeo4jConfig(formNeo4j);
     setSystemPrompt(promptInput);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -392,6 +419,150 @@ export function SettingsView() {
         </div>
       </Card>
 
+      <Card className="p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+              <Database className="h-4 w-4" />
+            </div>
+            <div>
+              <CardTitle className="text-xs font-semibold text-foreground">
+                Neo4j Graph Memory Configuration
+              </CardTitle>
+              <CardDescription className="text-[11px]">
+                Persistent AVO lineage graph & autonomous reasoning memory
+              </CardDescription>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge
+              variant={
+                neo4jTestResult?.connected ?? neo4jStatus?.connected
+                  ? "success"
+                  : "error"
+              }
+              className="text-[10px] font-mono capitalize"
+            >
+              {neo4jTestResult?.connected ?? neo4jStatus?.connected
+                ? "Connected"
+                : "Disconnected"}
+            </Badge>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => refetchNeo4j()}
+              disabled={isCheckingNeo4j}
+              className="h-7 w-7"
+            >
+              <RefreshCw className={`h-3 w-3 ${isCheckingNeo4j ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-3 pt-1 border-t border-border/50">
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-medium text-foreground flex items-center gap-1.5">
+                <Globe className="h-3 w-3 text-muted-foreground" />
+                Neo4j Bolt URI / Cloud Host
+              </label>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setFormNeo4j((p) => ({ ...p, uri: "127.0.0.1:7687" }))}
+                  className="text-[10px] text-primary hover:underline"
+                >
+                  Local (127.0.0.1:7687)
+                </button>
+              </div>
+            </div>
+            <Input
+              value={formNeo4j.uri}
+              onChange={(e) => setFormNeo4j((p) => ({ ...p, uri: e.target.value }))}
+              placeholder="127.0.0.1:7687 or neo4j+s://xxxx.databases.neo4j.io"
+              className="font-mono text-xs h-9 bg-secondary/40"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium text-foreground flex items-center gap-1.5">
+                <User className="h-3 w-3 text-muted-foreground" />
+                Username
+              </label>
+              <Input
+                value={formNeo4j.user}
+                onChange={(e) => setFormNeo4j((p) => ({ ...p, user: e.target.value }))}
+                placeholder="neo4j"
+                className="font-mono text-xs h-9 bg-secondary/40"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium text-foreground flex items-center gap-1.5">
+                <Database className="h-3 w-3 text-muted-foreground" />
+                Database
+              </label>
+              <Input
+                value={formNeo4j.database || "neo4j"}
+                onChange={(e) => setFormNeo4j((p) => ({ ...p, database: e.target.value }))}
+                placeholder="neo4j"
+                className="font-mono text-xs h-9 bg-secondary/40"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-medium text-foreground flex items-center gap-1.5">
+              <Key className="h-3 w-3 text-muted-foreground" />
+              Password
+            </label>
+            <div className="relative flex items-center">
+              <Input
+                type={showNeo4jPass ? "text" : "password"}
+                value={formNeo4j.pass}
+                onChange={(e) => setFormNeo4j((p) => ({ ...p, pass: e.target.value }))}
+                placeholder="Database Password"
+                className="font-mono text-xs h-9 pr-10 bg-secondary/40"
+              />
+              <button
+                type="button"
+                onClick={() => setShowNeo4jPass(!showNeo4jPass)}
+                className="absolute right-2.5 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showNeo4jPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-2 border-t border-border/40">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleTestNeo4j}
+              disabled={neo4jTestStatus === "testing"}
+              className="gap-1.5 text-xs h-8"
+            >
+              <RefreshCw className={`h-3 w-3 ${neo4jTestStatus === "testing" ? "animate-spin" : ""}`} />
+              {neo4jTestStatus === "testing" ? "Testing Connection..." : "Test Neo4j Connection"}
+            </Button>
+
+            <div className="text-xs font-mono text-muted-foreground">
+              <span>Nodes: </span>
+              <span className="text-foreground font-semibold">
+                {neo4jTestResult?.node_count ?? neo4jStatus?.node_count ?? 0}
+              </span>
+            </div>
+          </div>
+
+          {(neo4jTestResult?.error || neo4jStatus?.error) && (
+            <div className="p-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-[11px] text-destructive">
+              {neo4jTestResult?.error || neo4jStatus?.error}
+            </div>
+          )}
+        </div>
+      </Card>
+
       <Card className="p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -431,75 +602,7 @@ export function SettingsView() {
         </div>
       </Card>
 
-      <Card className="p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
-              <Moon className="h-4 w-4" />
-            </div>
-            <div>
-              <CardTitle className="text-xs font-semibold text-foreground">
-                Appearance Theme
-              </CardTitle>
-              <CardDescription className="text-[11px]">
-                Mode: <span className="capitalize font-mono text-foreground">{theme}</span>
-              </CardDescription>
-            </div>
-          </div>
-          <ThemeToggle />
-        </div>
-      </Card>
 
-      <Card className="p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
-              <Database className="h-4 w-4" />
-            </div>
-            <div>
-              <CardTitle className="text-xs font-semibold text-foreground">
-                Neo4j Graph Memory
-              </CardTitle>
-              <CardDescription className="text-[11px]">
-                NVIDIA AVO lineage and persistent knowledge graph
-              </CardDescription>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge
-              variant={neo4jStatus?.connected ? "success" : "error"}
-              className="text-[10px] font-mono capitalize"
-            >
-              {neo4jStatus?.connected ? "Connected" : "Disconnected"}
-            </Badge>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => refetchNeo4j()}
-              disabled={isCheckingNeo4j}
-              className="h-7 w-7"
-            >
-              <RefreshCw className={`h-3 w-3 ${isCheckingNeo4j ? "animate-spin" : ""}`} />
-            </Button>
-          </div>
-        </div>
-
-        <div className="pt-1 text-xs space-y-1 font-mono text-muted-foreground">
-          <div className="flex justify-between">
-            <span>URI:</span>
-            <span className="text-foreground">{neo4jStatus?.uri || "127.0.0.1:7687"}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Graph Nodes:</span>
-            <span className="text-foreground">{neo4jStatus?.node_count ?? 0}</span>
-          </div>
-          {neo4jStatus?.error && (
-            <div className="text-[10px] text-destructive pt-1">
-              {neo4jStatus.error}
-            </div>
-          )}
-        </div>
-      </Card>
 
       <Card className="p-4 space-y-3">
         <div className="flex items-center gap-2">
@@ -526,7 +629,7 @@ export function SettingsView() {
           <div className="flex justify-end">
             <Button variant="primary" size="sm" onClick={handleSave} className="gap-1.5 text-xs h-8">
               {saved ? <Check className="h-3.5 w-3.5 text-primary-foreground" /> : null}
-              {saved ? "Saved & Applied" : "Save Changes"}
+              {saved ? "Saved & Applied All Settings" : "Save Changes"}
             </Button>
           </div>
         </div>

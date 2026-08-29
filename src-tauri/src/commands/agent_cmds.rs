@@ -1,8 +1,9 @@
+use crate::agent::graph_memory::GraphMemoryManager;
 use crate::agent::provider::ModelFactory;
 use crate::agent::{tools, AgentEngine};
 use crate::models::{
-    AgentRequest, AgentResponse, LineageGraphPayload, ModelConfig, Neo4jStatus, OllamaModel,
-    SubAgentExecutionResult, SubAgentSpawnRequest,
+    AgentRequest, AgentResponse, LineageGraphPayload, ModelConfig, Neo4jConfig, Neo4jStatus,
+    OllamaModel, SubAgentExecutionResult, SubAgentSpawnRequest,
 };
 use std::sync::Arc;
 use tauri::{command, AppHandle, State};
@@ -53,6 +54,28 @@ pub async fn list_models_for_config(
         None => state.active_config.read().await.clone(),
     };
     ModelFactory::list_models(&conf).await
+}
+
+#[command]
+pub async fn get_neo4j_config(
+    state: State<'_, AgentState>,
+) -> Result<Neo4jConfig, String> {
+    Ok(state.engine.get_neo4j_config().await)
+}
+
+#[command]
+pub async fn save_neo4j_config(
+    state: State<'_, AgentState>,
+    config: Neo4jConfig,
+) -> Result<Neo4jStatus, String> {
+    Ok(state.engine.update_neo4j_config(config).await)
+}
+
+#[command]
+pub async fn test_neo4j_connection(
+    config: Neo4jConfig,
+) -> Result<Neo4jStatus, String> {
+    Ok(GraphMemoryManager::test_config(&config).await)
 }
 
 #[command]

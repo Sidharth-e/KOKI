@@ -156,46 +156,14 @@ pub struct ModelConfig {
 
 impl Default for ModelConfig {
     fn default() -> Self {
-        let mode = std::env::var("OLLAMA_MODE")
-            .unwrap_or_else(|_| "local".to_string())
-            .to_lowercase();
-
-        let is_cloud = mode == "cloud";
-
-        let api_key = std::env::var("OLLAMA_API_KEY")
-            .or_else(|_| std::env::var("OLLAMA_CLOUD_API_KEY"))
-            .or_else(|_| std::env::var("OPENAI_API_KEY"))
-            .ok()
-            .filter(|k| !k.trim().is_empty());
-
-        let endpoint = if is_cloud {
-            std::env::var("OLLAMA_CLOUD_URL")
-                .or_else(|_| std::env::var("OLLAMA_URL"))
-                .unwrap_or_else(|_| "https://api.ollama.com".to_string())
-        } else {
-            std::env::var("OLLAMA_LOCAL_URL")
-                .or_else(|_| std::env::var("OLLAMA_URL"))
-                .unwrap_or_else(|_| "http://127.0.0.1:11434".to_string())
-        };
-
-        let model_name = std::env::var("OLLAMA_MODEL")
-            .or_else(|_| std::env::var("NEXT_PUBLIC_OLLAMA_MODEL"))
-            .unwrap_or_default();
-
-        let provider = if is_cloud {
-            ProviderType::OllamaCloud
-        } else {
-            ProviderType::OllamaLocal
-        };
-
         Self {
             id: "default".to_string(),
             name: "Default Profile".to_string(),
-            provider,
-            mode,
-            endpoint,
-            api_key,
-            model_name,
+            provider: ProviderType::OllamaLocal,
+            mode: "local".to_string(),
+            endpoint: "http://127.0.0.1:11434".to_string(),
+            api_key: None,
+            model_name: "gemma4:31b".to_string(),
             temperature: Some(0.3),
             max_tokens: None,
             custom_headers: None,
@@ -224,37 +192,39 @@ impl Default for OllamaConfig {
     }
 }
 
+fn default_neo4j_uri() -> String {
+    "127.0.0.1:7687".to_string()
+}
+
+fn default_neo4j_user() -> String {
+    "neo4j".to_string()
+}
+
+fn default_neo4j_pass() -> String {
+    "AvoHarness2026!SecureGraph".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Neo4jConfig {
+    #[serde(default = "default_neo4j_uri")]
     pub uri: String,
+    #[serde(default = "default_neo4j_user")]
     pub user: String,
+    #[serde(default = "default_neo4j_pass")]
     pub pass: String,
     pub database: Option<String>,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
 }
 
 impl Default for Neo4jConfig {
     fn default() -> Self {
-        let uri = std::env::var("NEO4J_URI")
-            .or_else(|_| std::env::var("NEO4J_URL"))
-            .unwrap_or_else(|_| "127.0.0.1:7687".to_string());
-
-        let user = std::env::var("NEO4J_USER")
-            .or_else(|_| std::env::var("NEO4J_USERNAME"))
-            .unwrap_or_else(|_| "neo4j".to_string());
-
-        let pass = std::env::var("NEO4J_PASS")
-            .or_else(|_| std::env::var("NEO4J_PASSWORD"))
-            .unwrap_or_else(|_| "AvoHarness2026!SecureGraph".to_string());
-
-        let database = std::env::var("NEO4J_DATABASE")
-            .or_else(|_| std::env::var("NEO4J_DB"))
-            .ok();
-
         Self {
-            uri,
-            user,
-            pass,
-            database,
+            uri: "127.0.0.1:7687".to_string(),
+            user: "neo4j".to_string(),
+            pass: "AvoHarness2026!SecureGraph".to_string(),
+            database: Some("neo4j".to_string()),
+            enabled: true,
         }
     }
 }

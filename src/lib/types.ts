@@ -101,6 +101,14 @@ export interface AgentResponse {
   total_duration_ms: number;
 }
 
+export interface Neo4jConfig {
+  uri: string;
+  user: string;
+  pass: string;
+  database?: string;
+  enabled: boolean;
+}
+
 export interface Neo4jStatus {
   connected: boolean;
   uri: string;

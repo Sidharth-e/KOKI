@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { ModelConfig, ProviderType } from "@/lib/types";
+import { ModelConfig, Neo4jConfig, Neo4jStatus, ProviderType } from "@/lib/types";
 import { invokeCommand } from "@/lib/tauri";
 
 export type ActiveDockPanel = "chat" | "usage" | "tools" | "system" | "settings" | null;
@@ -9,6 +9,7 @@ interface AppState {
   theme: ThemeMode;
   activePanel: ActiveDockPanel;
   modelConfig: ModelConfig;
+  neo4jConfig: Neo4jConfig;
   selectedModel: string;
   ollamaEndpoint: string;
   systemPrompt: string;
@@ -21,6 +22,8 @@ interface AppState {
   togglePanel: (panel: NonNullable<ActiveDockPanel>) => void;
   setModelConfig: (config: ModelConfig) => void;
   updateModelConfig: (partial: Partial<ModelConfig>) => void;
+  setNeo4jConfig: (config: Neo4jConfig) => void;
+  updateNeo4jConfig: (partial: Partial<Neo4jConfig>) => void;
   setSelectedModel: (model: string) => void;
   setOllamaEndpoint: (endpoint: string) => void;
   setSystemPrompt: (prompt: string) => void;
@@ -29,6 +32,7 @@ interface AppState {
   setCommandPaletteOpen: (open: boolean) => void;
   syncBackendConfig: () => Promise<void>;
   saveConfigToBackend: (config: ModelConfig) => Promise<void>;
+  saveNeo4jConfigToBackend: (config: Neo4jConfig) => Promise<void>;
 }
 
 const getInitialModelConfig = (): ModelConfig => {
@@ -43,32 +47,50 @@ const getInitialModelConfig = (): ModelConfig => {
     }
   }
 
-  const isCloud = process.env.OLLAMA_MODE === "cloud";
-  const defaultEndpoint = isCloud
-    ? process.env.OLLAMA_CLOUD_URL || "https://api.ollama.com"
-    : process.env.OLLAMA_URL || "http://127.0.0.1:11434";
-
   return {
     id: "default",
     name: "Default Profile",
-    provider: isCloud ? "ollama_cloud" : "ollama_local",
-    mode: isCloud ? "cloud" : "local",
-    endpoint: defaultEndpoint,
-    api_key: process.env.OLLAMA_API_KEY || "",
-    model_name: process.env.OLLAMA_MODEL || process.env.NEXT_PUBLIC_OLLAMA_MODEL || "",
+    provider: "ollama_local",
+    mode: "local",
+    endpoint: "http://127.0.0.1:11434",
+    api_key: "",
+    model_name: "gemma4:31b",
     temperature: 0.3,
     is_active: true,
   };
 };
 
-const initialConfig = getInitialModelConfig();
+const getInitialNeo4jConfig = (): Neo4jConfig => {
+  if (typeof window !== "undefined") {
+    try {
+      const stored = localStorage.getItem("koki_neo4j_config");
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch {
+      // Ignore parse error
+    }
+  }
+
+  return {
+    uri: "127.0.0.1:7687",
+    user: "neo4j",
+    pass: "AvoHarness2026!SecureGraph",
+    database: "neo4j",
+    enabled: true,
+  };
+};
+
+const initialModelConfig = getInitialModelConfig();
+const initialNeo4jConfig = getInitialNeo4jConfig();
 
 export const useAppStore = create<AppState>((set, get) => ({
   theme: "dark",
   activePanel: "chat",
-  modelConfig: initialConfig,
-  selectedModel: initialConfig.model_name,
-  ollamaEndpoint: initialConfig.endpoint,
+  modelConfig: initialModelConfig,
+  neo4jConfig: initialNeo4jConfig,
+  selectedModel: initialModelConfig.model_name,
+  ollamaEndpoint: initialModelConfig.endpoint,
   systemPrompt: "You are KOKI, a fast, proactive, and intelligent AI personal assistant powered by Rig and Tauri.",
   audioMuted: false,
   agentModeEnabled: true,
@@ -102,6 +124,21 @@ export const useAppStore = create<AppState>((set, get) => ({
     const updated = { ...get().modelConfig, ...partial };
     get().setModelConfig(updated);
   },
+  setNeo4jConfig: (neo4jConfig) => {
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("koki_neo4j_config", JSON.stringify(neo4jConfig));
+      } catch {
+        // Ignore storage error
+      }
+    }
+    set({ neo4jConfig });
+    get().saveNeo4jConfigToBackend(neo4jConfig);
+  },
+  updateNeo4jConfig: (partial) => {
+    const updated = { ...get().neo4jConfig, ...partial };
+    get().setNeo4jConfig(updated);
+  },
   setSelectedModel: (selectedModel) => {
     const updated = { ...get().modelConfig, model_name: selectedModel };
     get().setModelConfig(updated);
@@ -124,6 +161,10 @@ export const useAppStore = create<AppState>((set, get) => ({
           ollamaEndpoint: backendConfig.endpoint,
         });
       }
+      const backendNeo4j = await invokeCommand<Neo4jConfig>("get_neo4j_config");
+      if (backendNeo4j) {
+        set({ neo4jConfig: backendNeo4j });
+      }
     } catch {
       // Fallback to local
     }
@@ -131,6 +172,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   saveConfigToBackend: async (config: ModelConfig) => {
     try {
       await invokeCommand<ModelConfig>("save_model_config", { config });
+    } catch {
+      // Ignore backend save error in browser
+    }
+  },
+  saveNeo4jConfigToBackend: async (config: Neo4jConfig) => {
+    try {
+      await invokeCommand<Neo4jStatus>("save_neo4j_config", { config });
     } catch {
       // Ignore backend save error in browser
     }

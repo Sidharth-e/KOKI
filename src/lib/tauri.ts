@@ -12,19 +12,14 @@ export async function invokeCommand<T>(cmd: string, args?: Record<string, unknow
   }
 
   if (cmd === "get_model_config") {
-    const isCloud = process.env.OLLAMA_MODE === "cloud";
-    const endpoint = isCloud
-      ? process.env.OLLAMA_CLOUD_URL || "https://api.ollama.com"
-      : process.env.OLLAMA_URL || "http://127.0.0.1:11434";
-    const model = process.env.OLLAMA_MODEL || process.env.NEXT_PUBLIC_OLLAMA_MODEL || "gemma4:31b";
     return {
       id: "default",
       name: "Default Profile",
-      provider: isCloud ? "ollama_cloud" : "ollama_local",
-      mode: isCloud ? "cloud" : "local",
-      endpoint,
-      api_key: process.env.OLLAMA_API_KEY || "",
-      model_name: model,
+      provider: "ollama_local",
+      mode: "local",
+      endpoint: "http://127.0.0.1:11434",
+      api_key: "",
+      model_name: "gemma4:31b",
       temperature: 0.3,
       is_active: true,
     } as T;
@@ -40,7 +35,7 @@ export async function invokeCommand<T>(cmd: string, args?: Record<string, unknow
 
   if (cmd === "list_models_for_config") {
     const cfg = (args?.config as ModelConfig) || {};
-    const modelName = cfg.model_name || process.env.OLLAMA_MODEL || "gemma4:31b";
+    const modelName = cfg.model_name || "gemma4:31b";
     return [
       {
         name: modelName,
@@ -51,6 +46,45 @@ export async function invokeCommand<T>(cmd: string, args?: Record<string, unknow
         quantization_level: "Q4_K_M",
       },
     ] as T;
+  }
+
+  if (cmd === "get_neo4j_config") {
+    return {
+      uri: "127.0.0.1:7687",
+      user: "neo4j",
+      pass: "AvoHarness2026!SecureGraph",
+      database: "neo4j",
+      enabled: true,
+    } as T;
+  }
+
+  if (cmd === "save_neo4j_config") {
+    const conf = args?.config as Record<string, unknown>;
+    return {
+      connected: true,
+      uri: (conf?.uri as string) || "127.0.0.1:7687",
+      node_count: 19,
+      error: undefined,
+    } as T;
+  }
+
+  if (cmd === "test_neo4j_connection") {
+    const conf = args?.config as Record<string, unknown>;
+    return {
+      connected: true,
+      uri: (conf?.uri as string) || "127.0.0.1:7687",
+      node_count: 19,
+      error: undefined,
+    } as T;
+  }
+
+  if (cmd === "check_neo4j_status") {
+    return {
+      connected: true,
+      uri: "127.0.0.1:7687",
+      node_count: 19,
+      error: undefined,
+    } as T;
   }
 
   if (cmd === "get_system_metrics") {
@@ -75,19 +109,16 @@ export async function invokeCommand<T>(cmd: string, args?: Record<string, unknow
   }
 
   if (cmd === "list_ollama_models") {
-    const envModel = process.env.OLLAMA_MODEL || process.env.NEXT_PUBLIC_OLLAMA_MODEL;
-    return (envModel
-      ? [
-          {
-            name: envModel,
-            size: 0,
-            digest: "",
-            modified_at: new Date().toISOString(),
-            parameter_size: undefined,
-            quantization_level: undefined,
-          },
-        ]
-      : []) as T;
+    return [
+      {
+        name: "gemma4:31b",
+        size: 0,
+        digest: "",
+        modified_at: new Date().toISOString(),
+        parameter_size: undefined,
+        quantization_level: undefined,
+      },
+    ] as T;
   }
 
   if (cmd === "get_available_tools") {
