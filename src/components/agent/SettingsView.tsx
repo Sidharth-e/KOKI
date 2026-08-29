@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { Check, Cpu, Database, Moon, RefreshCw, Server, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export function SettingsView() {
   const {
