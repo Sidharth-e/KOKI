@@ -1,37 +1,94 @@
+pub mod avo_loop;
+pub mod graph_memory;
+pub mod subagents;
+pub mod supervisor;
 pub mod tools;
 
-use crate::models::{AgentRequest, AgentResponse, StreamChunkPayload, ToolCallInfo, ToolStatusPayload};
-use futures_util::StreamExt;
+use crate::models::{
+    AgentRequest, AgentResponse, LineageGraphPayload, Neo4jConfig, Neo4jStatus,
+    SubAgentExecutionResult, SubAgentSpawnRequest,
+};
+use avo_loop::AvoEngine;
+use graph_memory::GraphMemoryManager;
 use reqwest::Client;
-use serde_json::json;
-use std::time::Instant;
-use tauri::{AppHandle, Emitter};
+use std::sync::Arc;
+use subagents::{SubAgentRole, SubAgentRunner};
+use supervisor::SupervisorAgent;
+use tauri::AppHandle;
 
 pub struct AgentEngine {
-    client: Client,
-    ollama_url: String,
+    pub client: Client,
+    pub ollama_url: String,
+    pub graph_memory: Arc<GraphMemoryManager>,
+    pub supervisor: Arc<SupervisorAgent>,
+    pub subagent_runner: Arc<SubAgentRunner>,
+    pub avo_engine: Arc<AvoEngine>,
 }
 
 impl Default for AgentEngine {
     fn default() -> Self {
+        let client = Client::builder()
+            .timeout(std::time::Duration::from_secs(120))
+            .build()
+            .unwrap_or_default();
+        let ollama_url = "http://127.0.0.1:11434".to_string();
+        let graph_memory = Arc::new(GraphMemoryManager::new(None));
+        let subagent_runner = Arc::new(SubAgentRunner::new(
+            client.clone(),
+            ollama_url.clone(),
+            Arc::clone(&graph_memory),
+        ));
+        let supervisor = Arc::new(SupervisorAgent::new(
+            Arc::clone(&graph_memory),
+            Arc::clone(&subagent_runner),
+        ));
+        let avo_engine = Arc::new(AvoEngine::new(
+            client.clone(),
+            ollama_url.clone(),
+            Arc::clone(&graph_memory),
+        ));
+
         Self {
-            client: Client::builder()
-                .timeout(std::time::Duration::from_secs(120))
-                .build()
-                .unwrap_or_default(),
-            ollama_url: "http://127.0.0.1:11434".to_string(),
+            client,
+            ollama_url,
+            graph_memory,
+            supervisor,
+            subagent_runner,
+            avo_engine,
         }
     }
 }
 
 impl AgentEngine {
-    pub fn new(ollama_url: Option<String>) -> Self {
+    pub fn new(ollama_url: Option<String>, neo4j_config: Option<Neo4jConfig>) -> Self {
+        let client = Client::builder()
+            .timeout(std::time::Duration::from_secs(120))
+            .build()
+            .unwrap_or_default();
+        let ollama_url = ollama_url.unwrap_or_else(|| "http://127.0.0.1:11434".to_string());
+        let graph_memory = Arc::new(GraphMemoryManager::new(neo4j_config));
+        let subagent_runner = Arc::new(SubAgentRunner::new(
+            client.clone(),
+            ollama_url.clone(),
+            Arc::clone(&graph_memory),
+        ));
+        let supervisor = Arc::new(SupervisorAgent::new(
+            Arc::clone(&graph_memory),
+            Arc::clone(&subagent_runner),
+        ));
+        let avo_engine = Arc::new(AvoEngine::new(
+            client.clone(),
+            ollama_url.clone(),
+            Arc::clone(&graph_memory),
+        ));
+
         Self {
-            client: Client::builder()
-                .timeout(std::time::Duration::from_secs(120))
-                .build()
-                .unwrap_or_default(),
-            ollama_url: ollama_url.unwrap_or_else(|| "http://127.0.0.1:11434".to_string()),
+            client,
+            ollama_url,
+            graph_memory,
+            supervisor,
+            subagent_runner,
+            avo_engine,
         }
     }
 
@@ -41,174 +98,42 @@ impl AgentEngine {
         session_id: &str,
         req: AgentRequest,
     ) -> Result<AgentResponse, String> {
-        let start_time = Instant::now();
-        let mut tool_calls_executed = Vec::new();
+        let _ = self.graph_memory.init_schema().await;
+        self.avo_engine.run_avo_loop(app, session_id, req, 3).await
+    }
 
-        let system_preamble = req.system_prompt.unwrap_or_else(|| {
-            "You are KOKI, a fast, proactive, and intelligent local AI personal assistant powered by Rig and Tauri.".to_string()
-        });
+    pub async fn spawn_subagent(
+        &self,
+        app: &AppHandle,
+        req: SubAgentSpawnRequest,
+    ) -> Result<SubAgentExecutionResult, String> {
+        let role = match req.role.to_lowercase().as_str() {
+            "planner" => SubAgentRole::Planner,
+            "variation_worker" | "worker" => SubAgentRole::VariationWorker,
+            "evaluator" => SubAgentRole::Evaluator,
+            "diagnoser" => SubAgentRole::Diagnoser,
+            other => SubAgentRole::Custom(other.to_string()),
+        };
 
-        let mut messages = Vec::new();
-        messages.push(json!({
-            "role": "system",
-            "content": system_preamble
-        }));
-
-        if let Some(history) = req.history {
-            for msg in history {
-                messages.push(json!({
-                    "role": msg.role,
-                    "content": msg.content
-                }));
-            }
-        }
-
-        messages.push(json!({
-            "role": "user",
-            "content": req.prompt
-        }));
-
-        let tool_definitions = tools::get_available_tools_definitions();
-        let tools_json = tool_definitions
-            .iter()
-            .map(|t| {
-                json!({
-                    "type": "function",
-                    "function": {
-                        "name": t.name,
-                        "description": t.description,
-                        "parameters": t.parameters
-                    }
-                })
-            })
-            .collect::<Vec<_>>();
-
-        let endpoint = format!("{}/api/chat", self.ollama_url.trim_end_matches('/'));
-
-        let request_body = json!({
-            "model": req.model,
-            "messages": messages,
-            "stream": true,
-            "tools": tools_json,
-            "options": {
-                "temperature": req.temperature.unwrap_or(0.7)
-            }
-        });
-
-        let response = self
-            .client
-            .post(&endpoint)
-            .json(&request_body)
-            .send()
+        let model = req.model.unwrap_or_else(|| "qwen2.5-coder:7b".to_string());
+        self.supervisor
+            .spawn_agent(
+                app,
+                &req.session_id,
+                role,
+                &req.goal,
+                req.context.as_deref(),
+                &model,
+                true,
+            )
             .await
-            .map_err(|e| format!("Failed to connect to Ollama at {}: {}", endpoint, e))?;
+    }
 
-        let status = response.status();
-        if !status.is_success() {
-            let err_text = response.text().await.unwrap_or_default();
-            return Err(format!("Ollama error (HTTP {}): {}", status, err_text));
-        }
+    pub async fn get_lineage(&self, session_id: &str) -> Result<LineageGraphPayload, String> {
+        self.graph_memory.get_session_lineage(session_id).await
+    }
 
-        let mut stream = response.bytes_stream();
-        let mut accumulated_text = String::new();
-        let mut line_buffer = String::new();
-
-        while let Some(chunk_result) = stream.next().await {
-            let chunk_bytes = chunk_result.map_err(|e| e.to_string())?;
-            let chunk_str = String::from_utf8_lossy(&chunk_bytes);
-            line_buffer.push_str(&chunk_str);
-
-            while let Some(newline_pos) = line_buffer.find('\n') {
-                let line = line_buffer[..newline_pos].trim().to_string();
-                line_buffer.drain(..=newline_pos);
-
-                if line.is_empty() {
-                    continue;
-                }
-
-                if let Ok(val) = serde_json::from_str::<serde_json::Value>(&line) {
-                    if let Some(msg) = val.get("message") {
-                        if let Some(content) = msg.get("content").and_then(|c| c.as_str()) {
-                            if !content.is_empty() {
-                                accumulated_text.push_str(content);
-                                let _ = app.emit(
-                                    "assistant-stream-chunk",
-                                    StreamChunkPayload {
-                                        session_id: session_id.to_string(),
-                                        chunk: content.to_string(),
-                                        is_done: false,
-                                        error: None,
-                                    },
-                                );
-                            }
-                        }
-
-                        if let Some(tool_calls) = msg.get("tool_calls").and_then(|tc| tc.as_array()) {
-                            for tc in tool_calls {
-                                if let Some(func) = tc.get("function") {
-                                    let tool_name = func.get("name").and_then(|n| n.as_str()).unwrap_or("");
-                                    let tool_args = func.get("arguments").cloned().unwrap_or(json!({}));
-
-                                    let _ = app.emit(
-                                        "assistant-tool-status",
-                                        ToolStatusPayload {
-                                            session_id: session_id.to_string(),
-                                            tool_name: tool_name.to_string(),
-                                            status: "running".to_string(),
-                                            input: tool_args.clone(),
-                                            output: None,
-                                        },
-                                    );
-
-                                    let t_start = Instant::now();
-                                    let tool_res = tools::execute_tool(tool_name, &tool_args).await;
-                                    let t_dur = t_start.elapsed().as_millis() as u64;
-
-                                    let result_json = match tool_res {
-                                        Ok(out) => out,
-                                        Err(e) => json!({ "error": e }),
-                                    };
-
-                                    let _ = app.emit(
-                                        "assistant-tool-status",
-                                        ToolStatusPayload {
-                                            session_id: session_id.to_string(),
-                                            tool_name: tool_name.to_string(),
-                                            status: "completed".to_string(),
-                                            input: tool_args.clone(),
-                                            output: Some(result_json.clone()),
-                                        },
-                                    );
-
-                                    tool_calls_executed.push(ToolCallInfo {
-                                        tool_name: tool_name.to_string(),
-                                        arguments: tool_args,
-                                        result: result_json,
-                                        duration_ms: t_dur,
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        let _ = app.emit(
-            "assistant-stream-chunk",
-            StreamChunkPayload {
-                session_id: session_id.to_string(),
-                chunk: String::new(),
-                is_done: true,
-                error: None,
-            },
-        );
-
-        Ok(AgentResponse {
-            response: accumulated_text,
-            model: req.model,
-            tool_calls: tool_calls_executed,
-            total_duration_ms: start_time.elapsed().as_millis() as u64,
-        })
+    pub async fn check_neo4j_status(&self) -> Neo4jStatus {
+        self.graph_memory.check_status().await
     }
 }

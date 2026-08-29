@@ -13,6 +13,7 @@ target/
 src-tauri/target/
 src-tauri/gen/
 **/*.rs.bk
+data/
 
 # Logs
 npm-debug.log*

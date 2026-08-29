@@ -2,14 +2,14 @@
 
 import { useAppStore } from "@/store/useAppStore";
 import { invokeCommand } from "@/lib/tauri";
-import { OllamaModel } from "@/lib/types";
+import { Neo4jStatus, OllamaModel } from "@/lib/types";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
-import { Check, Cpu, Moon, Server, Sparkles } from "lucide-react";
+import { Check, Cpu, Database, Moon, RefreshCw, Server, Sparkles } from "lucide-react";
 import { useState } from "react";
 
 export function SettingsView() {
@@ -32,6 +32,13 @@ export function SettingsView() {
       return await invokeCommand<OllamaModel[]>("list_ollama_models", {
         endpoint: ollamaEndpoint,
       });
+    },
+  });
+
+  const { data: neo4jStatus, refetch: refetchNeo4j, isFetching: isCheckingNeo4j } = useQuery({
+    queryKey: ["neo4j-status"],
+    queryFn: async () => {
+      return await invokeCommand<Neo4jStatus>("check_neo4j_status");
     },
   });
 
@@ -122,6 +129,57 @@ export function SettingsView() {
             placeholder="http://127.0.0.1:11434"
             className="font-mono text-xs h-9"
           />
+        </div>
+      </Card>
+
+      <Card className="p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+              <Database className="h-4 w-4" />
+            </div>
+            <div>
+              <CardTitle className="text-xs font-semibold text-foreground">
+                Neo4j Graph Memory
+              </CardTitle>
+              <CardDescription className="text-[11px]">
+                NVIDIA AVO lineage and persistent knowledge graph
+              </CardDescription>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge
+              variant={neo4jStatus?.connected ? "success" : "error"}
+              className="text-[10px] font-mono capitalize"
+            >
+              {neo4jStatus?.connected ? "Connected" : "Disconnected"}
+            </Badge>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => refetchNeo4j()}
+              disabled={isCheckingNeo4j}
+              className="h-7 w-7"
+            >
+              <RefreshCw className={`h-3 w-3 ${isCheckingNeo4j ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
+        </div>
+
+        <div className="pt-1 text-xs space-y-1 font-mono text-muted-foreground">
+          <div className="flex justify-between">
+            <span>URI:</span>
+            <span className="text-foreground">{neo4jStatus?.uri || "127.0.0.1:7687"}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Graph Nodes:</span>
+            <span className="text-foreground">{neo4jStatus?.node_count ?? 0}</span>
+          </div>
+          {neo4jStatus?.error && (
+            <div className="text-[10px] text-destructive pt-1">
+              {neo4jStatus.error}
+            </div>
+          )}
         </div>
       </Card>
 

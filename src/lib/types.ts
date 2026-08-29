@@ -77,3 +77,60 @@ export interface AgentResponse {
   tool_calls: ToolCallInfo[];
   total_duration_ms: number;
 }
+
+export interface Neo4jStatus {
+  connected: boolean;
+  uri: string;
+  node_count: number;
+  error?: string;
+}
+
+export interface LineageNodeInfo {
+  id: string;
+  label: string;
+  node_type: string;
+  iteration?: number;
+  score?: number;
+  data: Record<string, unknown>;
+  timestamp: number;
+}
+
+export interface LineageEdgeInfo {
+  source_id: string;
+  target_id: string;
+  relationship: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface LineageGraphPayload {
+  session_id: string;
+  nodes: LineageNodeInfo[];
+  edges: LineageEdgeInfo[];
+}
+
+export interface SupervisorEventPayload {
+  session_id: string;
+  event_type: string;
+  iteration: number;
+  message: string;
+  score?: number;
+  data?: Record<string, unknown>;
+}
+
+export interface SubAgentSpawnRequest {
+  session_id: string;
+  role: string;
+  goal: string;
+  context?: string;
+  model?: string;
+}
+
+export interface SubAgentExecutionResult {
+  agent_id: string;
+  role: string;
+  output: string;
+  tool_calls: ToolCallInfo[];
+  duration_ms: number;
+  success: boolean;
+}
+
