@@ -77,6 +77,9 @@ impl AvoEngine {
         let mut previous_candidate_id: Option<String> = None;
         let mut accumulated_final_response = String::new();
         let mut supervisor_hint: Option<String> = None;
+        let mut iteration_feedback: Option<String> = None;
+        let mut last_tool_errors: Vec<String> = Vec::new();
+        let mut last_score: Option<f64> = None;
 
         let effective_config = req.config.clone().unwrap_or_else(|| {
             let mut c = ModelConfig::default();
@@ -102,7 +105,14 @@ impl AvoEngine {
             if iteration > 1 {
                 supervisor_hint = self
                     .supervisor
-                    .inspect_and_check_stagnation(app, session_id, iteration, 2)
+                    .inspect_and_check_stagnation(
+                        app,
+                        session_id,
+                        iteration,
+                        2,
+                        &last_tool_errors,
+                        last_score,
+                    )
                     .await
                     .unwrap_or(None);
             }
@@ -133,10 +143,20 @@ impl AvoEngine {
             }
 
             if let Some((best_id, best_score, best_proposal)) = best_info {
-                system_prompt.push_str(&format!(
-                    "\n[LINEAGE CONTEXT: Best previous candidate: {} with score {:.2}]\n{}\n",
-                    best_id, best_score, best_proposal
-                ));
+                if best_score >= 0.5 {
+                    system_prompt.push_str(&format!(
+                        "\n[LINEAGE CONTEXT: Best previous candidate: {} with score {:.2}]\n{}\n",
+                        best_id, best_score, best_proposal
+                    ));
+                } else {
+                    // Don't present a failing attempt as "best" — it encourages
+                    // the model to repeat it. The concrete failure details are
+                    // already provided in the iteration feedback message.
+                    system_prompt.push_str(&format!(
+                        "\n[LINEAGE CONTEXT: No successful candidate yet (best so far scored {:.2}). Previous attempts failed — see the feedback message below and change strategy.]\n",
+                        best_score
+                    ));
+                }
             }
 
             let mut messages = Vec::new();
@@ -158,6 +178,16 @@ impl AvoEngine {
                 "role": "user",
                 "content": req.prompt.clone()
             }));
+
+            // Inject the previous iteration's outcome IN THE MESSAGE FLOW so the
+            // model actually sees what failed and why (it cannot see system-prompt
+            // footnotes as strongly as an instruction after the task).
+            if let Some(ref fb) = iteration_feedback {
+                messages.push(json!({
+                    "role": "user",
+                    "content": fb.clone()
+                }));
+            }
 
             let (candidate_text, iteration_tool_calls) = ModelFactory::execute_stream_chat(
                 app,
@@ -190,12 +220,19 @@ impl AvoEngine {
             let mut score = 0.5;
             let mut feedback = "Candidate generated and executed successfully.".to_string();
 
-            let has_tool_errors = iteration_tool_calls.iter().any(|tc| {
-                tc.result
-                    .get("error")
-                    .map(|e| !e.is_null())
-                    .unwrap_or(false)
-            });
+            let tool_errors: Vec<String> = iteration_tool_calls
+                .iter()
+                .filter_map(|tc| {
+                    tc.result
+                        .get("error")
+                        .filter(|e| !e.is_null())
+                        .map(|e| {
+                            let msg = e.as_str().map(|s| s.to_string()).unwrap_or_else(|| e.to_string());
+                            format!("- {} {} → {}", tc.tool_name, tc.arguments, msg)
+                        })
+                })
+                .collect();
+            let has_tool_errors = !tool_errors.is_empty();
 
             if has_tool_errors {
                 score = 0.3;
@@ -207,6 +244,35 @@ impl AvoEngine {
                 score = 0.85;
                 feedback = "Direct response synthesized cleanly.".to_string();
             }
+
+            // Prepare structured feedback for the NEXT iteration.
+            iteration_feedback = if has_tool_errors {
+                let snippet: String = candidate_text.chars().take(400).collect();
+                Some(format!(
+                    "[ATTEMPT {} FAILED — score {:.2}]\n\
+                     Tool errors:\n{}\n\n\
+                     Your previous answer snippet: \"{}\"\n\n\
+                     The identical approach already failed. Do NOT call the same tool with the same arguments again. \
+                     Diagnose the root cause (e.g. verify the path exists with list_directory or execute_shell_command, \
+                     check argument formats, or answer from your own knowledge if the environment can't satisfy the request) \
+                     and try a genuinely different strategy.",
+                    iteration,
+                    score,
+                    tool_errors.join("\n"),
+                    snippet
+                ))
+            } else if iteration_tool_calls.is_empty() && candidate_text.trim().is_empty() {
+                Some(format!(
+                    "[ATTEMPT {} PRODUCED NO OUTPUT — score {:.2}]\n\
+                     You must either answer directly or use tools to gather information. \
+                     Produce a substantive response this time.",
+                    iteration, score
+                ))
+            } else {
+                None
+            };
+            last_tool_errors = tool_errors;
+            last_score = Some(score);
 
             let _ = self
                 .graph_memory

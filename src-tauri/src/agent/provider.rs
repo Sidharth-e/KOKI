@@ -361,12 +361,15 @@ impl ModelFactory {
             }
         }
 
-        // If tools were executed but the model produced no text yet, feed the
-        // results back so the model can synthesize a final answer.
-        if enable_tools && !executed_tools.is_empty() && accumulated_text.trim().is_empty() {
+        // If tools were executed, ALWAYS feed the results back so the model can
+        // see errors/successes and synthesize a final answer. Previously this only
+        // ran when the model produced no text, which meant tool errors were never
+        // visible to the model whenever it also emitted filler text alongside the
+        // tool call.
+        if enable_tools && !executed_tools.is_empty() {
             let mut followup_messages = messages.clone();
 
-            // Append the assistant's tool-call turn
+            // Append the assistant's tool-call turn (include any text it produced)
             let tool_calls_json: Vec<serde_json::Value> = executed_tools
                 .iter()
                 .map(|t: &ToolCallInfo| {
@@ -381,7 +384,7 @@ impl ModelFactory {
 
             followup_messages.push(json!({
                 "role": "assistant",
-                "content": "",
+                "content": accumulated_text,
                 "tool_calls": tool_calls_json
             }));
 
@@ -394,6 +397,11 @@ impl ModelFactory {
                 }));
             }
 
+            followup_messages.push(json!({
+                "role": "user",
+                "content": "The tool results above are the ground truth from the environment. If a tool failed, do NOT retry the identical call — pivot to a different tool or strategy. Now synthesize the final answer for the user based on these results."
+            }));
+
             // Second pass: stream the final response (no tools to avoid loops).
             let second_body = json!({
                 "model": model_name,
@@ -404,8 +412,14 @@ impl ModelFactory {
 
             if let Ok(resp2) = client.post(&endpoint).json(&second_body).send().await {
                 if resp2.status().is_success() {
-                    let mut stream2 = resp2.bytes_stream();
+                    // Only stream the second pass if the first pass produced no
+                    // (or trivial) text; otherwise the final answer is streamed
+                    // fresh and replaces filler text like "Let me read that file."
+                    let skip_stream = !accumulated_text.trim().is_empty()
+                        && accumulated_text.trim().chars().count() > 40;
+                    let mut second_pass_text = String::new();
                     let mut line_buf2 = String::new();
+                    let mut stream2 = resp2.bytes_stream();
                     while let Some(chunk_result) = stream2.next().await {
                         if let Ok(chunk_bytes) = chunk_result {
                             let chunk_str = String::from_utf8_lossy(&chunk_bytes);
@@ -418,7 +432,12 @@ impl ModelFactory {
                                     if let Some(msg) = val.get("message") {
                                         if let Some(content) = msg.get("content").and_then(|c| c.as_str()) {
                                             if !content.is_empty() {
-                                                accumulated_text.push_str(content);
+                                                if skip_stream {
+                                                    // First pass already answered; keep its
+                                                    // text and drop the second pass output.
+                                                    continue;
+                                                }
+                                                second_pass_text.push_str(content);
                                                 let _ = app.emit(
                                                     "assistant-stream-chunk",
                                                     StreamChunkPayload {
@@ -434,6 +453,9 @@ impl ModelFactory {
                                 }
                             }
                         }
+                    }
+                    if !second_pass_text.is_empty() {
+                        accumulated_text = second_pass_text;
                     }
                 }
             }
@@ -662,31 +684,48 @@ impl ModelFactory {
             }
         }
 
-        // Feed tool results back for a final synthesized answer if model didn't
-        // already produce text.
-        if enable_tools && !executed_tools.is_empty() && accumulated_text.trim().is_empty() {
+        // Feed tool results back for a final synthesized answer. Always do this
+        // when tools ran so the model can see error results; the second pass
+        // replaces filler text from the first pass.
+        if enable_tools && !executed_tools.is_empty() {
             let mut followup_messages = messages.clone();
 
-            for (idx, t) in executed_tools.iter().enumerate() {
-                // Reconstruct the tool_call entries in OpenAI response shape.
-                followup_messages.push(json!({
-                    "role": "assistant",
-                    "content": "",
-                    "tool_calls": [{
+            let tool_calls_json: Vec<serde_json::Value> = executed_tools
+                .iter()
+                .enumerate()
+                .map(|(idx, t)| {
+                    json!({
                         "id": format!("call_{}", idx),
                         "type": "function",
                         "function": {
                             "name": t.tool_name,
                             "arguments": serde_json::to_string(&t.arguments).unwrap_or_else(|_| "{}".into())
                         }
-                    }]
-                }));
+                    })
+                })
+                .collect();
+
+            // Single assistant turn containing ALL tool calls (OpenAI spec:
+            // every tool message must respond to a tool_call_id declared in a
+            // preceding assistant message).
+            followup_messages.push(json!({
+                "role": "assistant",
+                "content": accumulated_text,
+                "tool_calls": tool_calls_json
+            }));
+
+            for (idx, t) in executed_tools.iter().enumerate() {
                 followup_messages.push(json!({
                     "role": "tool",
                     "tool_call_id": format!("call_{}", idx),
                     "content": serde_json::to_string(&t.result).unwrap_or_else(|_| "{}".into())
                 }));
             }
+
+            followup_messages.push(json!({
+                "role": "user",
+                "content": "The tool results above are the ground truth from the environment. If a tool failed, do NOT retry the identical call. Now synthesize the final answer for the user based on these results."
+            }));
 
             let second_body = json!({
                 "model": model_name,
@@ -697,8 +736,11 @@ impl ModelFactory {
 
             if let Ok(resp2) = client.post(&endpoint).json(&second_body).send().await {
                 if resp2.status().is_success() {
-                    let mut stream2 = resp2.bytes_stream();
+                    let skip_stream = !accumulated_text.trim().is_empty()
+                        && accumulated_text.trim().chars().count() > 40;
+                    let mut second_pass_text = String::new();
                     let mut line_buf2 = String::new();
+                    let mut stream2 = resp2.bytes_stream();
                     while let Some(chunk_result) = stream2.next().await {
                         if let Ok(chunk_bytes) = chunk_result {
                             let chunk_str = String::from_utf8_lossy(&chunk_bytes);
@@ -717,7 +759,10 @@ impl ModelFactory {
                                                     .and_then(|c| c.as_str())
                                                 {
                                                     if !content.is_empty() {
-                                                        accumulated_text.push_str(content);
+                                                        if skip_stream {
+                                                            continue;
+                                                        }
+                                                        second_pass_text.push_str(content);
                                                         let _ = app.emit(
                                                             "assistant-stream-chunk",
                                                             StreamChunkPayload {
@@ -735,6 +780,9 @@ impl ModelFactory {
                                 }
                             }
                         }
+                    }
+                    if !second_pass_text.is_empty() {
+                        accumulated_text = second_pass_text;
                     }
                 }
             }

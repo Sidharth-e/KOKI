@@ -27,6 +27,8 @@ impl SupervisorAgent {
         session_id: &str,
         iteration: u32,
         window_size: u32,
+        last_tool_errors: &[String],
+        last_score: Option<f64>,
     ) -> Result<Option<String>, String> {
         let scores = self
             .graph_memory
@@ -44,9 +46,46 @@ impl SupervisorAgent {
 
         if delta <= 0.05 {
             let hint_id = format!("hint_{}", Uuid::new_v4().simple());
+
+            // Build a CONCRETE hint: name what failed and how to pivot, instead
+            // of a generic "pivot approach" message the model can't act on.
+            let failed_tools: Vec<String> = last_tool_errors
+                .iter()
+                .filter_map(|e| e.split_whitespace().nth(1).map(|s| s.to_string()))
+                .collect();
+            let failed_tools_summary = if failed_tools.is_empty() {
+                "no tools succeeded".to_string()
+            } else {
+                let mut counts: std::collections::HashMap<String, usize> =
+                    std::collections::HashMap::new();
+                for t in &failed_tools {
+                    *counts.entry(t.clone()).or_insert(0) += 1;
+                }
+                counts
+                    .iter()
+                    .map(|(t, c)| format!("{} ({}x)", t, c))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            };
+
+            let error_details = if last_tool_errors.is_empty() {
+                String::new()
+            } else {
+                format!("\nRecent tool errors:\n{}", last_tool_errors.join("\n"))
+            };
+
             let hint_text = format!(
-                "SUPERVISION INTERVENTION: Trajectory plateau detected (score delta {:.2} across last {} variations). Pivot approach immediately: reconsider assumptions, verify environment state using tools, and explore alternative paths.",
-                delta, window_size
+                "SUPERVISION INTERVENTION: Trajectory plateau detected (score delta {:.2} across last {} variations, last score {}). \
+                 Failed tools so far: {}.{}\n\
+                 MANDATE: The repeated approach is not working. You MUST change strategy: \
+                 (1) do not call any tool that already failed with the same arguments, \
+                 (2) verify assumptions about the environment first (e.g. list_directory / execute_shell_command to confirm file paths), \
+                 (3) if the environment cannot satisfy the request, say so explicitly and answer from your own knowledge.",
+                delta,
+                window_size,
+                last_score.map(|s| format!("{:.2}", s)).unwrap_or_else(|| "n/a".into()),
+                failed_tools_summary,
+                error_details
             );
 
             let _ = self
