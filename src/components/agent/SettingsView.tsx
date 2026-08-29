@@ -54,40 +54,13 @@ const PROVIDER_PRESETS: {
     badge: "Cloud",
   },
   {
-    id: "openai",
-    name: "OpenAI Compatible",
-    mode: "cloud",
-    defaultEndpoint: "https://api.openai.com/v1",
-    defaultModel: "gpt-4o",
-    description: "Standard OpenAI /v1 endpoint format",
-    badge: "Cloud",
-  },
-  {
     id: "openrouter",
     name: "OpenRouter",
     mode: "cloud",
     defaultEndpoint: "https://openrouter.ai/api/v1",
     defaultModel: "anthropic/claude-3.5-sonnet",
-    description: "Unified AI gateway to 200+ foundation models",
+    description: "Unified AI gateway with model listing API",
     badge: "Cloud",
-  },
-  {
-    id: "anthropic",
-    name: "Anthropic Claude",
-    mode: "cloud",
-    defaultEndpoint: "https://api.anthropic.com/v1",
-    defaultModel: "claude-3-7-sonnet-20250219",
-    description: "Direct Claude model execution via x-api-key",
-    badge: "Cloud",
-  },
-  {
-    id: "custom",
-    name: "Custom LLM Gateway",
-    mode: "cloud",
-    defaultEndpoint: "http://127.0.0.1:8000/v1",
-    defaultModel: "custom-model",
-    description: "vLLM, LM Studio, or self-hosted API gateway",
-    badge: "Custom",
   },
 ];
 
@@ -107,6 +80,7 @@ export function SettingsView() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [showNeo4jPass, setShowNeo4jPass] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [isCustomModelMode, setIsCustomModelMode] = useState(false);
   const [testStatus, setTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
   const [testError, setTestError] = useState<string | null>(null);
   const [neo4jTestStatus, setNeo4jTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
@@ -355,33 +329,90 @@ export function SettingsView() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[11px] font-medium text-foreground flex items-center justify-between">
-              <span className="flex items-center gap-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-medium text-foreground flex items-center gap-1.5">
                 <Cpu className="h-3 w-3 text-muted-foreground" />
                 Active Model Name
-              </span>
-              <span className="text-[10px] font-mono text-primary">{formConfig.model_name}</span>
-            </label>
+              </label>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono text-primary truncate max-w-[160px]">
+                  {formConfig.model_name}
+                </span>
+                {discoveredModels && discoveredModels.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomModelMode(!isCustomModelMode)}
+                    className="text-[10px] text-primary hover:underline font-mono"
+                  >
+                    {isCustomModelMode ? "← API Catalog" : "+ Custom Tag"}
+                  </button>
+                )}
+              </div>
+            </div>
 
-            {discoveredModels && discoveredModels.length > 0 ? (
-              <select
-                value={formConfig.model_name}
-                onChange={(e) => setFormConfig((prev) => ({ ...prev, model_name: e.target.value }))}
-                className="w-full h-9 rounded-lg border border-border bg-secondary/50 px-3 text-xs font-mono text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
-              >
-                {discoveredModels.map((m) => (
-                  <option key={m.name} value={m.name} className="bg-card text-foreground">
-                    {m.name} {m.parameter_size ? `(${m.parameter_size})` : ""}
+            {discoveredModels && discoveredModels.length > 0 && !isCustomModelMode ? (
+              <div className="space-y-1.5">
+                <select
+                  value={formConfig.model_name}
+                  onChange={(e) => {
+                    if (e.target.value === "__custom__") {
+                      setIsCustomModelMode(true);
+                    } else {
+                      setFormConfig((prev) => ({ ...prev, model_name: e.target.value }));
+                    }
+                  }}
+                  className="w-full h-9 rounded-lg border border-border bg-secondary/50 px-3 text-xs font-mono text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+                >
+                  {!discoveredModels.some((m) => m.name === formConfig.model_name) && formConfig.model_name && (
+                    <option value={formConfig.model_name} className="bg-card text-foreground">
+                      {formConfig.model_name} (Custom)
+                    </option>
+                  )}
+                  {discoveredModels.map((m) => (
+                    <option key={m.name} value={m.name} className="bg-card text-foreground">
+                      {m.name} {m.parameter_size ? `(${m.parameter_size})` : ""}
+                    </option>
+                  ))}
+                  <option value="__custom__" className="bg-card text-primary font-semibold">
+                    + Enter custom / unlisted model...
                   </option>
-                ))}
-              </select>
+                </select>
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                  <span>{discoveredModels.length} models detected from endpoint</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomModelMode(true)}
+                    className="text-primary hover:underline"
+                  >
+                    Add custom tag
+                  </button>
+                </div>
+              </div>
             ) : (
-              <Input
-                value={formConfig.model_name}
-                onChange={(e) => setFormConfig((prev) => ({ ...prev, model_name: e.target.value }))}
-                placeholder={activePreset.defaultModel}
-                className="font-mono text-xs h-9 bg-secondary/40"
-              />
+              <div className="space-y-1.5">
+                <Input
+                  value={formConfig.model_name}
+                  onChange={(e) => setFormConfig((prev) => ({ ...prev, model_name: e.target.value }))}
+                  placeholder={activePreset.defaultModel}
+                  className="font-mono text-xs h-9 bg-secondary/40"
+                />
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                  <span>
+                    {discoveredModels && discoveredModels.length > 0
+                      ? "Custom model tag input"
+                      : "Type model name or test connection to discover models"}
+                  </span>
+                  {discoveredModels && discoveredModels.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomModelMode(false)}
+                      className="text-primary hover:underline"
+                    >
+                      Browse {discoveredModels.length} discovered models
+                    </button>
+                  )}
+                </div>
+              </div>
             )}
           </div>
 

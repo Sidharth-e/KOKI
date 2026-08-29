@@ -100,10 +100,7 @@ use std::collections::HashMap;
 pub enum ProviderType {
     OllamaLocal,
     OllamaCloud,
-    Openai,
     Openrouter,
-    Anthropic,
-    Custom,
 }
 
 impl Default for ProviderType {

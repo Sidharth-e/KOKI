@@ -34,24 +34,9 @@ impl ModelFactory {
 
         if let Some(ref key) = config.api_key {
             if !key.trim().is_empty() {
-                let auth_val = match config.provider {
-                    ProviderType::Anthropic => format!("{}", key.trim()),
-                    _ => format!("Bearer {}", key.trim()),
-                };
-
+                let auth_val = format!("Bearer {}", key.trim());
                 if let Ok(val) = HeaderValue::from_str(&auth_val) {
-                    if config.provider == ProviderType::Anthropic {
-                        headers.insert(
-                            HeaderName::from_static("x-api-key"),
-                            val,
-                        );
-                        headers.insert(
-                            HeaderName::from_static("anthropic-version"),
-                            HeaderValue::from_static("2023-06-01"),
-                        );
-                    } else {
-                        headers.insert(AUTHORIZATION, val);
-                    }
+                    headers.insert(AUTHORIZATION, val);
                 }
             }
         }
@@ -82,18 +67,7 @@ impl ModelFactory {
                     Err(_) => Ok(false),
                 }
             }
-            ProviderType::Openai | ProviderType::Openrouter | ProviderType::Custom => {
-                let url = if base_url.ends_with("/v1") {
-                    format!("{}/models", base_url)
-                } else {
-                    format!("{}/v1/models", base_url)
-                };
-                match client.get(&url).timeout(Duration::from_secs(5)).send().await {
-                    Ok(res) => Ok(res.status().is_success()),
-                    Err(_) => Ok(false),
-                }
-            }
-            ProviderType::Anthropic => {
+            ProviderType::Openrouter => {
                 let url = if base_url.ends_with("/v1") {
                     format!("{}/models", base_url)
                 } else {
@@ -145,7 +119,7 @@ impl ModelFactory {
 
                 Ok(models)
             }
-            ProviderType::Openai | ProviderType::Openrouter | ProviderType::Custom => {
+            ProviderType::Openrouter => {
                 let url = if base_url.ends_with("/v1") {
                     format!("{}/models", base_url)
                 } else {
@@ -157,44 +131,22 @@ impl ModelFactory {
                     .timeout(Duration::from_secs(8))
                     .send()
                     .await
-                    .map_err(|e| format!("Failed to reach OpenAI provider at {}: {}", url, e))?;
+                    .map_err(|e| format!("Failed to reach OpenRouter at {}: {}", url, e))?;
 
                 if !res.status().is_success() {
-                    return Err(format!("OpenAI provider returned HTTP {}", res.status()));
+                    return Err(format!("OpenRouter returned HTTP {}", res.status()));
                 }
 
                 let data = res
                     .json::<OpenAiModelsResponse>()
                     .await
-                    .map_err(|e| format!("Failed to parse OpenAI models response: {}", e))?;
+                    .map_err(|e| format!("Failed to parse OpenRouter models response: {}", e))?;
 
                 let models = data
                     .data
                     .into_iter()
                     .map(|m| OllamaModel {
                         name: m.id,
-                        size: 0,
-                        digest: "".to_string(),
-                        modified_at: chrono::Utc::now().to_rfc3339(),
-                        parameter_size: None,
-                        quantization_level: None,
-                    })
-                    .collect();
-
-                Ok(models)
-            }
-            ProviderType::Anthropic => {
-                let default_models = vec![
-                    "claude-3-7-sonnet-20250219",
-                    "claude-3-5-sonnet-20241022",
-                    "claude-3-5-haiku-20241022",
-                    "claude-3-opus-20240229",
-                ];
-
-                let models = default_models
-                    .into_iter()
-                    .map(|name| OllamaModel {
-                        name: name.to_string(),
                         size: 0,
                         digest: "".to_string(),
                         modified_at: chrono::Utc::now().to_rfc3339(),
@@ -233,21 +185,8 @@ impl ModelFactory {
                 )
                 .await
             }
-            ProviderType::Openai | ProviderType::Openrouter | ProviderType::Custom => {
+            ProviderType::Openrouter => {
                 Self::execute_openai_chat(
-                    app,
-                    session_id,
-                    &client,
-                    base_url,
-                    &config.model_name,
-                    messages,
-                    enable_tools,
-                    temperature,
-                )
-                .await
-            }
-            ProviderType::Anthropic => {
-                Self::execute_ollama_chat(
                     app,
                     session_id,
                     &client,

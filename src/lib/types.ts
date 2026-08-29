@@ -12,10 +12,7 @@ export interface SystemMetrics {
 export type ProviderType =
   | "ollama_local"
   | "ollama_cloud"
-  | "openai"
-  | "openrouter"
-  | "anthropic"
-  | "custom";
+  | "openrouter";
 
 export interface ModelConfig {
   id: string;
