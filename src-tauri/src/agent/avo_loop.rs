@@ -128,7 +128,11 @@ impl AvoEngine {
             let mut system_prompt = format!(
                 "You are the KOKI autonomous AI agent implementing NVIDIA's AVO (Agentic Variation Operators) architecture.\n\
                  Your task is to inspect the lineage history, evaluate feedback, and propose the best candidate action or solution.\n\
-                 Iteration: {}/{}\n",
+                 Iteration: {}/{}\n\n\
+                 CRITICAL RULES for tool use:\n\
+                 (1) NEVER search ~/Library or other permission-restricted system folders — macOS TCC will deny access and waste iterations.\n\
+                 (2) When looking for user projects, search standard locations first: ~/Documents, ~/Desktop, ~/Developer, ~/Source, ~/Projects, ~/Code, ~/Workspace.\n\
+                 (3) After calling tools, you MUST synthesize the findings into a clear response for the user — a bare tool call with no explanation is a FAILED attempt.\n",
                 iteration, max_iterations
             );
 
@@ -223,13 +227,55 @@ impl AvoEngine {
             let tool_errors: Vec<String> = iteration_tool_calls
                 .iter()
                 .filter_map(|tc| {
-                    tc.result
-                        .get("error")
-                        .filter(|e| !e.is_null())
-                        .map(|e| {
-                            let msg = e.as_str().map(|s| s.to_string()).unwrap_or_else(|| e.to_string());
-                            format!("- {} {} → {}", tc.tool_name, tc.arguments, msg)
-                        })
+                    let result = &tc.result;
+
+                    // Hard error: the tool itself failed to execute (spawn error,
+                    // timeout, missing binary, etc.)
+                    if let Some(e) = result.get("error").filter(|e| !e.is_null()) {
+                        let msg = e.as_str().map(|s| s.to_string()).unwrap_or_else(|| e.to_string());
+                        return Some(format!("- {} {} → {}", tc.tool_name, tc.arguments, msg));
+                    }
+
+                    // Soft failure: the tool ran but reported failure in-band.
+                    // Shell commands return exit_code/success instead of "error",
+                    // so a non-zero exit must be treated as a failed attempt or the
+                    // loop will score it 0.9 and stop with an empty answer.
+                    let failed = result.get("success").and_then(|s| s.as_bool()) == Some(false)
+                        || result
+                            .get("exit_code")
+                            .and_then(|c| c.as_i64())
+                            .map(|c| c != 0)
+                            .unwrap_or(false);
+
+                    if failed {
+                        let stdout_tail: String = result
+                            .get("stdout")
+                            .and_then(|s| s.as_str())
+                            .unwrap_or("")
+                            .chars()
+                            .take(300)
+                            .collect();
+                        let stderr_tail: String = result
+                            .get("stderr")
+                            .and_then(|s| s.as_str())
+                            .unwrap_or("")
+                            .chars()
+                            .take(300)
+                            .collect();
+                        return Some(format!(
+                            "- {} {} → exit_code={} stderr={} stdout_tail={}",
+                            tc.tool_name,
+                            tc.arguments,
+                            result
+                                .get("exit_code")
+                                .and_then(|c| c.as_i64())
+                                .unwrap_or(-1),
+                            if stderr_tail.is_empty() { "(empty)" } else { &stderr_tail },
+                            if stdout_tail.is_empty() { "(empty)" } else { &stdout_tail }
+                        ));
+                    }
+
+                    None
                 })
                 .collect();
             let has_tool_errors = !tool_errors.is_empty();
@@ -238,8 +284,15 @@ impl AvoEngine {
                 score = 0.3;
                 feedback = "Some tool executions resulted in errors.".to_string();
             } else if !iteration_tool_calls.is_empty() {
-                score = 0.9;
-                feedback = "Tools executed cleanly and grounded with environment.".to_string();
+                // Require actual synthesized text alongside the tool calls;
+                // a bare tool call with no explanation is not a usable answer.
+                if candidate_text.trim().is_empty() {
+                    score = 0.5;
+                    feedback = "Tools executed but no explanatory response was synthesized.".to_string();
+                } else {
+                    score = 0.9;
+                    feedback = "Tools executed cleanly and grounded with environment.".to_string();
+                }
             } else if !candidate_text.trim().is_empty() {
                 score = 0.85;
                 feedback = "Direct response synthesized cleanly.".to_string();
