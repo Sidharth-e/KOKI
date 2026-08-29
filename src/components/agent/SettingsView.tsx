@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import {
   Check,
+  ChevronDown,
+  ChevronUp,
   Cloud,
   Cpu,
   Database,
@@ -24,7 +26,7 @@ import {
   User,
   Zap,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const PROVIDER_PRESETS: {
   id: ProviderType;
@@ -80,7 +82,8 @@ export function SettingsView() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [showNeo4jPass, setShowNeo4jPass] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [isCustomModelMode, setIsCustomModelMode] = useState(false);
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  const modelDropdownRef = useRef<HTMLDivElement>(null);
   const [testStatus, setTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
   const [testError, setTestError] = useState<string | null>(null);
   const [neo4jTestStatus, setNeo4jTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
@@ -93,6 +96,16 @@ export function SettingsView() {
   useEffect(() => {
     setFormNeo4j(neo4jConfig);
   }, [neo4jConfig]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (modelDropdownRef.current && !modelDropdownRef.current.contains(e.target as Node)) {
+        setIsModelDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const { data: discoveredModels, refetch: refetchModels, isFetching: isScanningModels } = useQuery({
     queryKey: ["discovered-models", formConfig.provider, formConfig.endpoint, formConfig.api_key],
@@ -143,7 +156,10 @@ export function SettingsView() {
       });
       if (ok) {
         setTestStatus("success");
-        refetchModels();
+        const result = await refetchModels();
+        if (result.data && result.data.length > 0) {
+          setIsModelDropdownOpen(true);
+        }
       } else {
         setTestStatus("error");
         setTestError("Endpoint is unreachable or returned an error status.");
@@ -151,6 +167,13 @@ export function SettingsView() {
     } catch (err: unknown) {
       setTestStatus("error");
       setTestError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleFetchModels = async () => {
+    const result = await refetchModels();
+    if (result.data && result.data.length > 0) {
+      setIsModelDropdownOpen(true);
     }
   };
 
@@ -335,85 +358,95 @@ export function SettingsView() {
                 Active Model Name
               </label>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono text-primary truncate max-w-[160px]">
-                  {formConfig.model_name}
-                </span>
                 {discoveredModels && discoveredModels.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setIsCustomModelMode(!isCustomModelMode)}
-                    className="text-[10px] text-primary hover:underline font-mono"
-                  >
-                    {isCustomModelMode ? "← API Catalog" : "+ Custom Tag"}
-                  </button>
+                  <span className="text-[10px] text-muted-foreground font-mono">
+                    {discoveredModels.length} discovered
+                  </span>
                 )}
+                <button
+                  type="button"
+                  onClick={handleFetchModels}
+                  disabled={isScanningModels}
+                  className="text-[10px] text-primary hover:underline font-mono flex items-center gap-1 disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-3 w-3 ${isScanningModels ? "animate-spin" : ""}`} />
+                  {isScanningModels
+                    ? "Fetching..."
+                    : discoveredModels && discoveredModels.length > 0
+                      ? "Re-fetch"
+                      : "Fetch models"}
+                </button>
               </div>
             </div>
 
-            {discoveredModels && discoveredModels.length > 0 && !isCustomModelMode ? (
-              <div className="space-y-1.5">
-                <select
-                  value={formConfig.model_name}
-                  onChange={(e) => {
-                    if (e.target.value === "__custom__") {
-                      setIsCustomModelMode(true);
-                    } else {
-                      setFormConfig((prev) => ({ ...prev, model_name: e.target.value }));
-                    }
-                  }}
-                  className="w-full h-9 rounded-lg border border-border bg-secondary/50 px-3 text-xs font-mono text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
-                >
-                  {!discoveredModels.some((m) => m.name === formConfig.model_name) && formConfig.model_name && (
-                    <option value={formConfig.model_name} className="bg-card text-foreground">
-                      {formConfig.model_name} (Custom)
-                    </option>
-                  )}
+            <div className="relative" ref={modelDropdownRef}>
+              <Input
+                value={formConfig.model_name}
+                onChange={(e) => setFormConfig((prev) => ({ ...prev, model_name: e.target.value }))}
+                onFocus={() => {
+                  if (discoveredModels && discoveredModels.length > 0) setIsModelDropdownOpen(true);
+                }}
+                placeholder={activePreset.defaultModel}
+                className="font-mono text-xs h-9 bg-secondary/40 pr-9"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (discoveredModels && discoveredModels.length > 0) {
+                    setIsModelDropdownOpen((o) => !o);
+                  } else {
+                    handleFetchModels();
+                  }
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                title={
+                  discoveredModels && discoveredModels.length > 0
+                    ? "Toggle discovered models"
+                    : "Fetch models from endpoint"
+                }
+              >
+                {isScanningModels ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : isModelDropdownOpen ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </button>
+
+              {isModelDropdownOpen && discoveredModels && discoveredModels.length > 0 && (
+                <div className="absolute z-50 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-border bg-card shadow-xl custom-scrollbar">
                   {discoveredModels.map((m) => (
-                    <option key={m.name} value={m.name} className="bg-card text-foreground">
-                      {m.name} {m.parameter_size ? `(${m.parameter_size})` : ""}
-                    </option>
-                  ))}
-                  <option value="__custom__" className="bg-card text-primary font-semibold">
-                    + Enter custom / unlisted model...
-                  </option>
-                </select>
-                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                  <span>{discoveredModels.length} models detected from endpoint</span>
-                  <button
-                    type="button"
-                    onClick={() => setIsCustomModelMode(true)}
-                    className="text-primary hover:underline"
-                  >
-                    Add custom tag
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <Input
-                  value={formConfig.model_name}
-                  onChange={(e) => setFormConfig((prev) => ({ ...prev, model_name: e.target.value }))}
-                  placeholder={activePreset.defaultModel}
-                  className="font-mono text-xs h-9 bg-secondary/40"
-                />
-                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                  <span>
-                    {discoveredModels && discoveredModels.length > 0
-                      ? "Custom model tag input"
-                      : "Type model name or test connection to discover models"}
-                  </span>
-                  {discoveredModels && discoveredModels.length > 0 && (
                     <button
+                      key={m.name}
                       type="button"
-                      onClick={() => setIsCustomModelMode(false)}
-                      className="text-primary hover:underline"
+                      onClick={() => {
+                        setFormConfig((prev) => ({ ...prev, model_name: m.name }));
+                        setIsModelDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-xs font-mono transition-colors hover:bg-secondary/60 ${
+                        m.name === formConfig.model_name
+                          ? "bg-primary/10 text-primary"
+                          : "text-foreground"
+                      }`}
                     >
-                      Browse {discoveredModels.length} discovered models
+                      <span className="truncate">{m.name}</span>
+                      {m.parameter_size && (
+                        <span className="text-[10px] text-muted-foreground shrink-0">
+                          {m.parameter_size}
+                        </span>
+                      )}
                     </button>
-                  )}
+                  ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+
+            <div className="text-[10px] text-muted-foreground">
+              {discoveredModels && discoveredModels.length > 0
+                ? "Pick a model from the dropdown or type a custom tag"
+                : "Type a model name, or fetch models from the Ollama / OpenAI endpoint"}
+            </div>
           </div>
 
           <div className="flex items-center justify-between pt-2 border-t border-border/40">
